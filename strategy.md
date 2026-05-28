@@ -169,8 +169,16 @@ DCE-MRI는 유방암 진단·치료계획·모니터링에 핵심이지만, gado
 ### 3.3 제출 인터페이스 (I/O contract)
 - 입력 `/input/images/pre-contrast-dce-mri-slice-breast/<uuid>.mha` → 출력 `/output/images/synthetic-contrast-dce-mri-slice-breast/output.mha`.
 - **float32 z-score `.mha`**, `output.CopyInformation(input)`로 spacing/origin/direction 보존 필수.
-- 입력은 **단일 2D 슬라이스** → 3D 모델 가정 제거. Docker `linux/amd64`, non-root, `/output` 쓰기가능, GPU 사용 가능(`CUDA_VISIBLE_DEVICES`/`MAMA_GPU_ID`).
+- 입력은 **단일 2D 슬라이스** → 3D 모델 가정 제거. Docker `linux/amd64`, non-root, `/input` read-only, `/output`·`/tmp` 쓰기가능, GPU 사용 가능(`CUDA_VISIBLE_DEVICES`/`MAMA_GPU_ID`).
+- GC 런타임은 **케이스 1개씩 실행**되고 **네트워크 접근 없음**. 모델 코드·가중치·통계파일·런타임 리소스는 빌드 시 이미지 안(`/opt/...`)에 넣거나 GC model upload 기능으로 제공해야 한다. Dockerfile에서 `/tmp`에 넣은 파일은 런타임에 남지 않는다고 가정.
 - **baseline 2종**: `identity-baseline`(pass-through, 인프라 점검용), `submission-gan`(medigan `00023` pix2pixHD; z-score↔uint8 PNG 브리징 포함, 가중치는 빌드시 외부 staging).
+- 제출 템플릿 선택: 경량/무가중치 모델은 `identity-baseline` 복사, GPU+외부 가중치 모델은 `submission-gan` 복사가 더 안전하다(`do_build.sh`의 `MODEL_WEIGHTS_DIR` staging과 GPU Docker 설정 재사용).
+- 커스텀 모델 `inference.py` 필수 흐름: 입력 `.mha` 탐색 → SimpleITK 로드 → 학습 스케일에 맞게 전처리 → 모델 추론 → `float32` 배열 저장 → `CopyInformation(input)` → `output.mha` 기록.
+- 가중치 배포 선택지: ① 컨테이너 내부 `resources/` 또는 `models/`로 COPY, ② GC *Models* 페이지에 tarball 업로드 후 런타임 `/opt/ml/model/`에서 로드. 큰 가중치는 ②가 업데이트/용량 관리에 유리하다.
+- 로컬 제출 검증 순서: `./do_build.sh` → `./do_test_run.sh`(필요시 `USE_GPU=0`) → `pytest test_algorithm.py -v` → `./do_save.sh` → GC Algorithm page의 *Containers → Upload a Container*. 컨테이너 활성화는 보통 수십 분 걸릴 수 있으며, 이후 새 컨테이너 업로드로 교체 가능.
+- GC 제출 운영: challenge *Submit* 페이지에서 phase를 선택하고 editor 권한이 있는 Algorithm을 고른다. Challenge용 Algorithm 생성 시 인터페이스는 자동 구성되며 title·GPU·memory만 설정한다. 새 컨테이너 업로드는 제출을 자동 생성하지 않으므로, 활성화 후 challenge phase에 다시 수동 제출해야 한다.
+- 컨테이너는 가능하면 10GB 미만으로 유지하고, 큰 가중치는 별도 model upload를 선호한다. `do_save.sh`의 `VERSION`을 제출마다 올려 컨테이너를 구분한다.
+- 관련 `docs/` 참조: `grand_challenge_mamasynth_submissions.md`, `mama_synth_custom_model_submission_guide.md`, `mama_synth_identity_baseline_readme.md`, `mama_synth_gan_submission_readme.md`, `gc_doc_making_a_challenge_submission.md`, `gc_doc_create_an_algorithm_page.md`, `gc_doc_building_and_testing_the_container.md`, `gc_doc_runtime_environment.md`, `gc_doc_exporting_the_container.md`, `gc_doc_upload_the_model_weights_separately.md`.
 
 ### 3.4 의존성 (`requirements.txt` 요지)
 `SimpleITK>=2.2`, `scikit-learn>=1.2`, `scipy>=1.10`, `scikit-image>=0.20`, `pyradiomics`(AIM-Harvard git master — PyPI는 py≥3.10 깨짐), `frd-score>=1.0`, `torchmetrics>=1.0`, `torch<2.10`, `nnunetv2>=2.4`, `xgboost<2.0`. **`lpips` 패키지·monai 없음.**
@@ -194,9 +202,10 @@ DCE-MRI는 유방암 진단·치료계획·모니터링에 핵심이지만, gado
 
 ### 4.2 단계적 로드맵
 **Phase 0 — 인프라 검증 (1~2일)**
-- identity-baseline로 GC 제출 end-to-end 확인 → 리더보드 하한 확보.
-- `submission-gan`(pix2pixHD `00023`) 빌드/로컬 추론 성공 → 정규화 브리징 이해.
-- 검증: Docker 빌드 성공 + `output.mha` float32·동일 dims·메타데이터 보존.
+- `identity-baseline`로 GC 제출 end-to-end 확인 → 리더보드 하한 확보.
+- `submission-gan`(pix2pixHD `00023`) 빌드/로컬 추론 성공 → 정규화 브리징·가중치 staging 이해.
+- 커스텀 모델은 먼저 `submission-gan` 템플릿 복사 후 `inference.py`, `requirements.txt`, `Dockerfile`, `do_build.sh`만 교체한다. `MODEL_WEIGHTS_DIR` 기반 staging 또는 GC `/opt/ml/model/` 로딩 중 하나를 명시적으로 선택한다.
+- 검증: Docker 빌드 성공 + `do_test_run.sh` 성공 + `pytest test_algorithm.py -v` 성공 + `output.mha` float32·동일 dims·메타데이터 보존.
 
 **Phase 1 — pix2pixHD baseline 개선 (저위험 메인, 1~2주)**
 - baseline에 ① **subtraction 타깃** ② **ROI 가중 + feature-matching + LPIPS-style perceptual loss** ③ **TSGAN식 종양 판별자/분할 분기**(curriculum) 추가.
@@ -251,7 +260,11 @@ L = λ_pix · L1(Δ_hat, Δ_gt)                      # 픽셀 충실도(MSE 그�
 - [ ] FID 대신 **FRD**로 검증(FID 신뢰 금지).
 - [ ] validation 제출 **5회 제한** → 로컬에서 충분히 검증 후 제출.
 - [ ] 외부 데이터는 **공개+문서화**만(private/NIH CADR 금지).
-- [ ] Docker `linux/amd64`·non-root·`/output` 쓰기권한.
+- [ ] Docker `linux/amd64`·non-root·`/input` read-only 가정·`/output` 쓰기권한.
+- [ ] GC 런타임 **네트워크 없음** → 가중치/통계/코드/리소스 이미지 포함 또는 `/opt/ml/model/` 업로드.
+- [ ] `./do_build.sh` → `./do_test_run.sh` → `pytest test_algorithm.py -v` → `./do_save.sh` 순서로 제출 전 검증.
+- [ ] 새 컨테이너 활성화 후 **challenge phase에 다시 수동 제출**(업로드만으로 제출 완료 아님).
+- [ ] 컨테이너 10GB 미만 권장, 큰 모델은 GC model upload로 분리.
 - [ ] 도메인시프트(3T Siemens / 1.5T GE) 대비 augmentation/정규화 강건화.
 
 ---

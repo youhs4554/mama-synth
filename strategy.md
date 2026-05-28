@@ -178,7 +178,7 @@ DCE-MRI는 유방암 진단·치료계획·모니터링에 핵심이지만, gado
 - 로컬 제출 검증 순서: `./do_build.sh` → `./do_test_run.sh`(필요시 `USE_GPU=0`) → `pytest test_algorithm.py -v` → `./do_save.sh` → GC Algorithm page의 *Containers → Upload a Container*. 컨테이너 활성화는 보통 수십 분 걸릴 수 있으며, 이후 새 컨테이너 업로드로 교체 가능.
 - GC 제출 운영: challenge *Submit* 페이지에서 phase를 선택하고 editor 권한이 있는 Algorithm을 고른다. Challenge용 Algorithm 생성 시 인터페이스는 자동 구성되며 title·GPU·memory만 설정한다. 새 컨테이너 업로드는 제출을 자동 생성하지 않으므로, 활성화 후 challenge phase에 다시 수동 제출해야 한다.
 - 컨테이너는 가능하면 10GB 미만으로 유지하고, 큰 가중치는 별도 model upload를 선호한다. `do_save.sh`의 `VERSION`을 제출마다 올려 컨테이너를 구분한다.
-- 관련 `docs/` 참조: `grand_challenge_mamasynth_submissions.md`, `mama_synth_custom_model_submission_guide.md`, `mama_synth_identity_baseline_readme.md`, `mama_synth_gan_submission_readme.md`, `gc_doc_making_a_challenge_submission.md`, `gc_doc_create_an_algorithm_page.md`, `gc_doc_building_and_testing_the_container.md`, `gc_doc_runtime_environment.md`, `gc_doc_exporting_the_container.md`, `gc_doc_upload_the_model_weights_separately.md`.
+- 관련 `docs/` 참조: `gc_mamasynth_submissions.md`, `mama_synth_custom_model_submission_guide.md`, `mama_synth_identity_baseline_readme.md`, `mama_synth_gan_submission_readme.md`, `gc_doc_making_a_challenge_submission.md`, `gc_doc_create_an_algorithm_page.md`, `gc_doc_building_and_testing_the_container.md`, `gc_doc_runtime_environment.md`, `gc_doc_exporting_the_container.md`, `gc_doc_upload_the_model_weights_separately.md`.
 
 ### 3.4 의존성 (`requirements.txt` 요지)
 `SimpleITK>=2.2`, `scikit-learn>=1.2`, `scipy>=1.10`, `scikit-image>=0.20`, `pyradiomics`(AIM-Harvard git master — PyPI는 py≥3.10 깨짐), `frd-score>=1.0`, `torchmetrics>=1.0`, `torch<2.10`, `nnunetv2>=2.4`, `xgboost<2.0`. **`lpips` 패키지·monai 없음.**

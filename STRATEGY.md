@@ -10,7 +10,7 @@
 
 ## 문서 맵 및 작업 기준
 
-`strategy.md`만 보고도 다음 작업을 진행할 수 있도록, 세부 근거는 아래 로컬 문서를 기준으로 확인한다.
+`STRATEGY.md`만 보고도 다음 작업을 진행할 수 있도록, 세부 근거는 아래 로컬 문서를 기준으로 확인한다.
 
 - **챌린지 핵심**: `docs/gc_mamasynth_introduction.md`, `docs/gc_mamasynth_data.md`, `docs/gc_mamasynth_metrics.md`, `docs/gc_mamasynth_timeline.md`, `docs/gc_mamasynth_submissions.md`.
 - **제출/운영**: `docs/mama_synth_custom_model_submission_guide.md`, `docs/mama_synth_identity_baseline_readme.md`, `docs/mama_synth_gan_submission_readme.md`, `docs/gc_doc_building_and_testing_the_container.md`, `docs/gc_doc_runtime_environment.md`, `docs/gc_doc_making_a_challenge_submission.md`, `docs/gc_doc_try_out_your_algorithm.md`, `docs/gc_doc_try_out_your_algorithm_and_publish_a_test_case.md`, `docs/gc_doc_upload_the_model_weights_separately.md`.
@@ -23,12 +23,28 @@
 
 모델 설계, 평가 해석, 데이터셋 경계, 제출 운영처럼 용어가 결과물 이름과 실험 판단에 영향을 주는 작업은 구현 전에 grill-with-docs 흐름으로 정렬한다.
 
-1. `CONTEXT.md`가 있는지 먼저 확인한다. 없으면 빈 파일을 미리 만들지 말고, 첫 번째 프로젝트 고유 용어 또는 관계가 합의될 때 생성한다.
+참고 기준: AI Hero의 grill-with-docs 문서(`https://www.aihero.dev/grill-with-docs`, `https://www.aihero.dev/things-people-get-wrong-with-grill-me-and-grill-with-docs`). 핵심은 코드베이스·개발자·도메인 전문가가 같은 말을 쓰게 만들고, 그 언어가 코드 탐색과 이후 PRD/issue/TDD 흐름에 그대로 이어지게 하는 것이다.
+
+1. `CONTEXT-MAP.md`가 있는지 먼저 확인한다. 있으면 해당 bounded context의 `CONTEXT.md`를 사용한다. 없으면 단일 루트 `CONTEXT.md`를 기준으로 삼고, 아직 없다면 빈 파일을 미리 만들지 말고 첫 번째 프로젝트 고유 용어 또는 관계가 합의될 때 생성한다.
 2. 질문은 한 번에 하나만 던지고, 각 질문마다 권장 답을 함께 제시한다. 코드나 문서에서 확인 가능한 내용은 사용자에게 묻기 전에 직접 확인한다.
 3. "baseline", "validation", "test", "mask", "synthetic post", "subtraction", "ROI", "proxy metric"처럼 overloaded term은 `CONTEXT.md` 정의와 충돌하지 않는지 확인한다.
 4. 합의된 용어는 즉시 `CONTEXT.md`에 저장한다. 저장 형식은 짧은 정의, 피해야 할 alias, 관계/경계, 남은 모호성이다.
-5. `CONTEXT.md`에는 구현 세부사항, 학습 레시피, 실험 결과, TODO를 넣지 않는다. 이 문서는 glossary이며, `strategy.md`는 전략/근거/운영 계획을 담는다.
-6. 되돌리기 어렵고, 맥락 없이는 놀랍고, 실제 trade-off가 있었던 결정은 `CONTEXT.md`가 아니라 `docs/adr/`의 ADR 후보로 분리한다.
+5. `CONTEXT.md`에는 구현 세부사항, 학습 레시피, 실험 결과, TODO를 넣지 않는다. 이 문서는 glossary이며, `STRATEGY.md`는 전략/근거/운영 계획을 담는다.
+6. scope가 너무 크면 먼저 작은 grillable chunk로 나눈다. 한 세션에서 며칠 치 구현 계획을 전부 확정하려 하지 않는다.
+7. 말로 답하기 어려운 high-fidelity 질문(예: 시각적 비교 UI, 복잡한 상태 전이, 실험 대시보드 상호작용)은 grilling 안에서 억지로 결정하지 않는다. 필요하면 throwaway prototype/spike로 답을 얻고, 그 결론만 planning thread로 되돌린다.
+8. grilling 중 확정한 결정은 context를 지우기 전에 PRD 또는 handoff artifact로 보존한다. 결정사항을 잃은 채 새 세션에서 PRD를 다시 쓰지 않는다.
+9. 되돌리기 어렵고, 맥락 없이는 놀랍고, 실제 trade-off가 있었던 결정은 `CONTEXT.md`가 아니라 `docs/adr/`의 ADR 후보로 분리한다.
+
+## PRD → Issues → TDD 실행 흐름
+
+MAMA-SYNTH 작업은 "용어 정렬 → 요구사항 문서화 → 실행 가능한 issue 분해 → 테스트 주도 구현" 순서로 진행한다. 특히 모델/평가/데이터 파이프라인처럼 실험 결과 해석이 중요한 작업은 아래 gate를 통과한 뒤 구현한다.
+
+1. **Grill with docs**: `CONTEXT.md`의 canonical 용어와 충돌하지 않게 계획을 검증한다. 모호한 말은 하나씩 질문해 정리하고, 합의된 프로젝트 고유 용어는 즉시 `CONTEXT.md`에 저장한다.
+2. **Prototype escape hatch**: grill 중 말로 판단하기 어려운 질문이 나오면 prototype/spike로 제한된 답을 얻고, 그 결론을 planning context에 다시 반영한다. prototype 산출물은 제품 코드가 아니며, 답을 얻은 뒤 삭제하거나 결정사항만 문서에 흡수한다.
+3. **To PRD**: 합의된 맥락을 PRD로 변환한다. PRD에는 문제, 해결 방향, user story, 구현 결정, 테스트 결정, 범위 제외 항목을 담고, 용어는 `CONTEXT.md` 표현을 따른다. 이 단계에서는 새 인터뷰를 늘리지 말고 이미 합의된 내용을 종합한다.
+4. **To issues**: PRD를 tracer-bullet vertical slice issue로 나눈다. 각 issue는 독립적으로 잡을 수 있고, 완료 시 end-to-end로 검증 가능해야 한다. HITL/AFK 여부, 선행 의존성, 커버하는 user story를 명시하고 사용자 승인 후 issue tracker에 게시한다. issue tracker가 준비되지 않은 경우에는 게시했다고 말하지 말고 draft issue로 보관한다.
+5. **TDD**: 승인된 issue 하나를 선택해 red-green-refactor로 구현한다. 한 번에 하나의 행동 테스트를 public interface 기준으로 작성하고, 최소 구현으로 통과시킨 뒤 다음 행동으로 이동한다. 모든 테스트를 먼저 작성하는 horizontal slice 방식은 금지한다.
+6. **완료 기준**: 해당 issue의 acceptance criteria, 관련 pytest/컨테이너 smoke test, 실험 metric logging, 문서 업데이트 여부를 확인한 뒤 다음 issue로 넘어간다.
 
 ## 0. 핵심 요약 (TL;DR)
 

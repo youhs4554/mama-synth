@@ -6,15 +6,28 @@ This repository supports the MAMA-SYNTH breast MRI synthesis challenge. Core Pyt
 
 ## Challenge Strategy Reference
 
-Before changing model design, preprocessing assumptions, or evaluation strategy, read `strategy.md`. It summarizes the MAMA-SYNTH task, metric tradeoffs, baseline constraints, and recommended development roadmap.
+Before changing model design, preprocessing assumptions, or evaluation strategy, read `STRATEGY.md`. It summarizes the MAMA-SYNTH task, metric tradeoffs, baseline constraints, and recommended development roadmap.
 
 ## Domain Context & Grill-With-Docs Workflow
 
-When a change involves fuzzy domain language, model-selection terminology, evaluation strategy, dataset boundaries, or submission policy, use a grill-with-docs workflow before implementation. First look for `CONTEXT.md` at the repository root. If it does not exist, create it lazily only after the first project-specific term or relationship is resolved with the user.
+When a change involves fuzzy domain language, model-selection terminology, evaluation strategy, dataset boundaries, or submission policy, use a grill-with-docs workflow before implementation. This follows the AI Hero guidance for codebases: align the language used by the codebase, developers, and domain experts before building.
 
-During that workflow, ask one concrete question at a time, give a recommended answer, and check the code or existing docs when the answer can be discovered locally. Challenge ambiguous terms against `CONTEXT.md`; if the user says "baseline", "validation", "mask", "synthetic post", or similar overloaded terms, clarify the precise project meaning before naming files, variables, or experiments.
+First look for `CONTEXT-MAP.md`; if it exists, use it to find the right bounded context. Otherwise look for a root `CONTEXT.md`. If neither exists, create `CONTEXT.md` lazily only after the first project-specific term or relationship is resolved with the user. This repository is currently treated as one context unless a context map is introduced.
+
+During that workflow, ask one concrete, grillable question at a time, give a recommended answer, and check the code or existing docs when the answer can be discovered locally. Challenge ambiguous terms against `CONTEXT.md`; if the user says "baseline", "validation", "mask", "synthetic post", or similar overloaded terms, clarify the precise project meaning before naming files, variables, or experiments. Keep the scope small; split broad plans into smaller grilling sessions instead of exhausting the context window.
 
 `CONTEXT.md` is a glossary, not a spec. Keep it free of implementation details, training recipes, TODOs, metric results, and architecture decisions. Store only stable shared language: canonical terms, short definitions, avoided aliases, relationships/cardinality, flagged ambiguities, and a small example dialogue when useful. For hard-to-reverse non-obvious tradeoffs, prefer a focused ADR under `docs/adr/` instead of expanding `CONTEXT.md`.
+
+If grilling exposes a high-fidelity question that cannot be answered in words, pause the grilling thread, use a throwaway prototype or spike to answer that question, record the answer durably, and then return to the original planning thread. Do not clear the conversation context before creating the PRD; the resolved design decisions are valuable handoff material.
+
+## PRD-to-TDD Delivery Workflow
+
+For substantial features or experiment infrastructure, use this sequence: `grill-with-docs` → `to-prd` → `to-issues` → `tdd`. Do not skip directly to implementation when terms, acceptance criteria, or issue boundaries are still fuzzy.
+
+1. `grill-with-docs`: resolve project language first. Update `CONTEXT.md` inline for agreed glossary terms and create ADRs only for hard-to-reverse, non-obvious tradeoffs.
+2. `to-prd`: synthesize the agreed context into a PRD using canonical terms. Include problem statement, user stories, implementation decisions, testing decisions, out-of-scope items, and notes. If no issue tracker is configured, keep the PRD as a draft artifact instead of claiming it was published.
+3. `to-issues`: break the PRD into independently grabbable tracer-bullet issues. Prefer thin vertical slices that are demoable or verifiable end-to-end; mark each as HITL or AFK, list dependencies, and get user approval before publishing or saving issue drafts.
+4. `tdd`: implement one approved issue at a time. Use red-green-refactor with one behavior test at a time through public interfaces; do not write all tests first or couple tests to implementation details.
 
 ## Build, Test, and Development Commands
 

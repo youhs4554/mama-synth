@@ -1,4 +1,5 @@
 # Defaults mama-synth
+datasets
 *.tar.gz
 *.DS_Store
 *.pt

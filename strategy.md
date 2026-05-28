@@ -16,7 +16,19 @@
 - **제출/운영**: `docs/mama_synth_custom_model_submission_guide.md`, `docs/mama_synth_identity_baseline_readme.md`, `docs/mama_synth_gan_submission_readme.md`, `docs/gc_doc_building_and_testing_the_container.md`, `docs/gc_doc_runtime_environment.md`, `docs/gc_doc_making_a_challenge_submission.md`, `docs/gc_doc_try_out_your_algorithm.md`, `docs/gc_doc_try_out_your_algorithm_and_publish_a_test_case.md`, `docs/gc_doc_upload_the_model_weights_separately.md`.
 - **GC 설정**: `docs/gc_doc_create_an_algorithm_page.md`, `docs/gc_doc_choose_input_and_output_interfaces.md`, `docs/gc_doc_add_the_algorithm.md`, `docs/gc_doc_exporting_the_container.md`, `docs/gc_doc_linking_a_github_repository_to_your_algorithm.md`.
 - **코드 엔트리포인트**: 전처리 `src/preprocessing/preprocess.py`, 통계 `src/preprocessing/compute_dataset_stats.py`, 평가 `src/evaluation/evaluate.py`, 메트릭 구현 `src/evaluation/evaluators/`, 제출 템플릿 `src/submission/identity-baseline/`, `src/submission/submission-gan/`.
+- **공유 언어**: `CONTEXT.md`가 생기면 MAMA-SYNTH 작업의 canonical 용어집으로 취급한다. 아직 없으면 첫 용어가 사용자와 합의되는 시점에만 생성한다.
 - 일부 `mama_synth` 계열 문서의 원문 URL은 개인 fork를 가리키지만, 작업 기준은 **현재 로컬 저장소 경로와 공식 `mama-research/mama-synth` I/O 계약**으로 통일한다.
+
+## Grill-With-Docs 작업 흐름
+
+모델 설계, 평가 해석, 데이터셋 경계, 제출 운영처럼 용어가 결과물 이름과 실험 판단에 영향을 주는 작업은 구현 전에 grill-with-docs 흐름으로 정렬한다.
+
+1. `CONTEXT.md`가 있는지 먼저 확인한다. 없으면 빈 파일을 미리 만들지 말고, 첫 번째 프로젝트 고유 용어 또는 관계가 합의될 때 생성한다.
+2. 질문은 한 번에 하나만 던지고, 각 질문마다 권장 답을 함께 제시한다. 코드나 문서에서 확인 가능한 내용은 사용자에게 묻기 전에 직접 확인한다.
+3. "baseline", "validation", "test", "mask", "synthetic post", "subtraction", "ROI", "proxy metric"처럼 overloaded term은 `CONTEXT.md` 정의와 충돌하지 않는지 확인한다.
+4. 합의된 용어는 즉시 `CONTEXT.md`에 저장한다. 저장 형식은 짧은 정의, 피해야 할 alias, 관계/경계, 남은 모호성이다.
+5. `CONTEXT.md`에는 구현 세부사항, 학습 레시피, 실험 결과, TODO를 넣지 않는다. 이 문서는 glossary이며, `strategy.md`는 전략/근거/운영 계획을 담는다.
+6. 되돌리기 어렵고, 맥락 없이는 놀랍고, 실제 trade-off가 있었던 결정은 `CONTEXT.md`가 아니라 `docs/adr/`의 ADR 후보로 분리한다.
 
 ## 0. 핵심 요약 (TL;DR)
 

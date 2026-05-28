@@ -8,6 +8,14 @@ This repository supports the MAMA-SYNTH breast MRI synthesis challenge. Core Pyt
 
 Before changing model design, preprocessing assumptions, or evaluation strategy, read `strategy.md`. It summarizes the MAMA-SYNTH task, metric tradeoffs, baseline constraints, and recommended development roadmap.
 
+## Domain Context & Grill-With-Docs Workflow
+
+When a change involves fuzzy domain language, model-selection terminology, evaluation strategy, dataset boundaries, or submission policy, use a grill-with-docs workflow before implementation. First look for `CONTEXT.md` at the repository root. If it does not exist, create it lazily only after the first project-specific term or relationship is resolved with the user.
+
+During that workflow, ask one concrete question at a time, give a recommended answer, and check the code or existing docs when the answer can be discovered locally. Challenge ambiguous terms against `CONTEXT.md`; if the user says "baseline", "validation", "mask", "synthetic post", or similar overloaded terms, clarify the precise project meaning before naming files, variables, or experiments.
+
+`CONTEXT.md` is a glossary, not a spec. Keep it free of implementation details, training recipes, TODOs, metric results, and architecture decisions. Store only stable shared language: canonical terms, short definitions, avoided aliases, relationships/cardinality, flagged ambiguities, and a small example dialogue when useful. For hard-to-reverse non-obvious tradeoffs, prefer a focused ADR under `docs/adr/` instead of expanding `CONTEXT.md`.
+
 ## Build, Test, and Development Commands
 
 Install runtime dependencies from the repository root:

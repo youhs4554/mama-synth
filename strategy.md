@@ -199,7 +199,60 @@ DCE-MRI는 유방암 진단·치료계획·모니터링에 핵심이지만, gado
 - **ground_truth 데이터도 미포함.** → 로컬 검증은 **자체 hold-out + 자체 proxy 분할/분류기**로 구성해야 함(아래 §4.6).
 - **GC 환경에서만** 공식 분류기/nnU-Net으로 ③④가 채점됨.
 
-### 3.6 실행 명령 치트시트
+### 3.6 로컬 데이터셋 경로 운영
+원본 MRI 데이터셋은 저장소 안에 두지 않는다. 실제 데이터 루트는 사용자가 로컬 디스크/외장 SSD/서버 마운트 상황에 맞춰 나중에 결정하고, 이 저장소에는 `datasets` 심볼릭 링크만 둔다.
+
+권장 개념 구조:
+```bash
+# 실제 원본/가공 데이터 루트: 사용자가 이후 결정
+<USER_DECIDED_DATA_ROOT>/mama-synth/
+  raw/
+    mama-mia/
+      images/
+      segmentations/
+  processed/
+    mama-mia-2d/
+      mha/
+        input/
+        ground_truth/
+        mask/
+      png/
+      intensity_plots/
+      report.csv
+  eval/
+    predictions/
+    metrics_out/
+    models/
+  weights/
+    pix2pixhd-00023/
+    custom/
+
+# repo 내부 편의 경로
+datasets -> <USER_DECIDED_DATA_ROOT>/mama-synth
+```
+
+심볼릭 링크 생성 예시:
+```bash
+# <USER_DECIDED_DATA_ROOT>는 실제 저장 위치가 정해진 뒤 치환한다.
+ln -s <USER_DECIDED_DATA_ROOT>/mama-synth datasets
+```
+
+이후 명령은 repo 기준 상대경로로 짧게 유지한다.
+```bash
+python src/preprocessing/preprocess.py \
+  --image_dir datasets/raw/mama-mia/images \
+  --seg_dir datasets/raw/mama-mia/segmentations \
+  --output_dir datasets/processed/mama-mia-2d \
+  --global_stats src/preprocessing/training_pre_stats.json
+```
+
+운영 규칙:
+- `datasets` symlink 자체는 개인 머신 의존 경로이므로 커밋하지 않는다.
+- 원본 MRI, mask, processed `.mha`, predictions, model weights, evaluation model은 모두 `datasets/` 아래 또는 repo 밖에 둔다.
+- Docker build context에 `datasets`가 포함되지 않게 `.dockerignore`가 생기면 반드시 `datasets`를 추가한다.
+- 코드에서 경로를 기록할 때는 가능하면 `Path(...).resolve()`로 실제 데이터 루트를 함께 로그에 남긴다.
+
+### 3.7 실행 명령 치트시트
 ```bash
 # 의존성 설치
 pip install -r requirements.txt
@@ -247,7 +300,7 @@ cp -r submission-gan submission-my-model
 **Phase 0 — 인프라 검증 (1~2일)**
 - `identity-baseline`로 GC 제출 end-to-end 확인 → 리더보드 하한 확보.
 - `submission-gan`(pix2pixHD `00023`) 빌드/로컬 추론 성공 → 정규화 브리징·가중치 staging 이해.
-- 커스텀 모델은 먼저 `submission-gan` 템플릿 복사 후 `inference.py`, `requirements.txt`, `Dockerfile`, `do_build.sh`만 교체한다. `MODEL_WEIGHTS_DIR` 기반 staging 또는 GC `/opt/ml/model/` 로딩 중 하나를 명시적으로 선택한다(§3.6 명령으로 검증).
+- 커스텀 모델은 먼저 `submission-gan` 템플릿 복사 후 `inference.py`, `requirements.txt`, `Dockerfile`, `do_build.sh`만 교체한다. `MODEL_WEIGHTS_DIR` 기반 staging 또는 GC `/opt/ml/model/` 로딩 중 하나를 명시적으로 선택한다(§3.7 명령으로 검증).
 - 검증: Docker 빌드 성공 + `do_test_run.sh` 성공 + `pytest test_algorithm.py -v` 성공 + `output.mha` float32·동일 dims·메타데이터 보존.
 - GC 활성화 후 `Try-out Algorithm`으로 known `.mha`를 실행하고 Results/Logs에서 stdout/stderr, GPU, memory, runtime을 확인한다. Validation 제출 전 Debug phase로 한 번 더 확인한다.
 
@@ -296,13 +349,76 @@ L = λ_pix · L1(Δ_hat, Δ_gt)                      # 픽셀 충실도(MSE 그�
 - **③④ proxy**: 종양 ROI radiomics + XGBoost로 pre-vs-post / tumor-vs-미러ROI AUROC 자체 학습; 자체 nnU-Net(또는 MAMA-MIA 학습 분할기)으로 Dice/HD95 proxy. **절대값은 GC와 다르지만 상대비교/체크포인트 선택엔 충분.**
 - **모델선택**: 4그룹 proxy를 **랭크-평균**으로 합쳐(공식 랭킹 모사) 단일 점수로 체크포인트 선택.
 
-### 4.7 리스크 & 함정 체크리스트
+### 4.7 실험 진행 모니터링 (Experiment Tracking)
+**기본 원칙**: 실험 추적은 **로컬 우선 MLflow + TensorBoard** 조합을 기본으로 한다. MRI 데이터·마스크·합성 출력·가중치는 보호/대용량 산출물이므로 외부 SaaS에 올리지 않는다. W&B 같은 외부 도구는 scalar-only/offline/private 모드 보조 옵션으로만 둔다. GC 제출 컨테이너는 런타임 네트워크가 없으므로 monitoring service에 의존하면 안 된다.
+
+**권장 디렉터리**
+```
+experiments/
+  mlruns/                 # MLflow local file store
+  tensorboard/            # TensorBoard event files
+  configs/                # 실행 config snapshot
+  reports/                # metric summary csv/json, plots
+  runs/<run_id>/           # checkpoints, predictions, debug figures
+```
+`experiments/`, `checkpoints/`, `predictions/`, `outputs/`, Docker tarball, model weights는 git에 커밋하지 않는다. 최종 논문/PR에는 원본 산출물 대신 aggregate metric table, sanitized plot, 실행 config checksum만 남긴다.
+
+**run_id 규칙**
+`YYYYMMDD-HHMM_<model>_<target>_<split>_<shortgit>` 형식을 쓴다.
+예: `20260528-2130_pix2pixhd-sub_roi_split-center_a1b2c3d`.
+
+**반드시 기록할 metadata**
+- 코드 상태: git commit, dirty 여부, 실행 명령, config 파일 경로와 resolved config.
+- 데이터 상태: train/val split ID, 제외 케이스 목록 checksum, `training_pre_stats.json` mean/std, resize/crop/rot90/augmentation 설정.
+- 모델 상태: architecture variant, target(`post` vs `subtraction`), loss weights, pretrained weight 출처, seed.
+- 런타임 상태: GPU 모델/VRAM, CUDA/PyTorch 버전, batch size, AMP/checkpointing/grad accumulation, epoch time, peak memory.
+- 제출 상태: submission template(`identity-baseline`, `submission-gan`, custom), Docker tag/version, `MODEL_WEIGHTS_DIR` 또는 `/opt/ml/model/` 사용 여부.
+
+**metric logging schema**
+step 단위 train/val loss와 epoch 단위 challenge proxy를 분리한다.
+
+| group | metric key | 방향 | 기록 주기 |
+|---|---|---|---|
+| image fidelity | `val/mse`, `val/lpips` | ↓ | epoch/checkpoint |
+| tumor ROI realism | `val/ssim_tumor`, `val/frd` | ↑/↓ | epoch/checkpoint |
+| classification proxy | `val/auroc_contrast_proxy`, `val/auroc_tumor_roi_proxy` | ↑ | selected checkpoints |
+| segmentation proxy | `val/dice_proxy`, `val/hd95_proxy` | ↑/↓ | selected checkpoints |
+| selection | `val/proxy_rank_mean`, `val/selection_score` | ↓ 또는 ↑ 명시 | selected checkpoints |
+| operations | `sys/gpu_mem_gb`, `sys/epoch_sec`, `sys/infer_sec_case` | 참고 | epoch |
+
+MLflow에는 scalar metric, config, metric summary JSON/CSV, sanitized plots, checkpoint path만 기록한다. TensorBoard에는 loss curve, learning rate, ROI crop debug image, prediction-vs-target montage를 기록하되, 외부 공유 금지 산출물로 취급한다.
+
+**실행 예시**
+```bash
+# 로컬 MLflow UI
+mlflow ui \
+  --backend-store-uri file:./experiments/mlruns \
+  --host 127.0.0.1 \
+  --port 5000
+
+# TensorBoard UI
+tensorboard \
+  --logdir ./experiments/tensorboard \
+  --host 127.0.0.1 \
+  --port 6006
+```
+
+**체크포인트 승격 게이트**
+1. `val/mse`, `val/lpips`, `val/ssim_tumor`, `val/frd`가 baseline 대비 동시에 악화되지 않을 것.
+2. proxy ③④는 절대값보다 baseline 대비 상대 순위와 `proxy_rank_mean` 개선을 우선한다.
+3. top-k checkpoint는 같은 hold-out split에서 inference output을 저장하고 `metrics.json`, config, model hash를 함께 묶는다.
+4. Validation 제출은 MLflow run에 `gc_validation_submission=true`, submission date, container version, leaderboard result를 태그로 남긴다.
+5. 동일 validation 결과를 재현할 수 있는 training config와 inference config가 남아 있지 않으면 Test phase 후보로 승격하지 않는다.
+
+### 4.8 리스크 & 함정 체크리스트
 **모델/평가 게이트**
 - [ ] 출력 스케일을 **z-score float32**로 정확히 맞춤(역정규화 누락 시 MSE 폭망).
 - [ ] `CopyInformation` 호출(메타데이터) — 누락 시 평가 오류.
 - [ ] 90° 회전 규약 일치(전처리가 rot90 적용 → 학습/추론 일관).
 - [ ] mask-conditioning 모델은 **테스트엔 마스크 없음** → 마스크-free 추론경로 필수.
 - [ ] FID 대신 **FRD**로 검증(FID 신뢰 금지).
+- [ ] MLflow/TensorBoard run에 config·split·checkpoint·metric summary가 남아 있는지 확인.
+- [ ] 보호 MRI 데이터·마스크·가중치·합성 출력은 cloud tracker에 업로드하지 않음.
 - [ ] validation 제출 **5회 제한** → 로컬에서 충분히 검증 후 제출.
 
 **제출/GC 게이트**

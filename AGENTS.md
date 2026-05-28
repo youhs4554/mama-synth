@@ -4,6 +4,10 @@
 
 This repository supports the MAMA-SYNTH breast MRI synthesis challenge. Core Python code lives in `src/`. Preprocessing utilities for slice extraction, normalization, and dataset statistics are in `src/preprocessing/`. Grand Challenge evaluation code is in `src/evaluation/`, with metric-specific evaluators under `src/evaluation/evaluators/` and tests under `src/evaluation/tests/`. Submission templates live in `src/submission/`: `identity-baseline/` is the pass-through smoke test, and `submission-gan/` is the Pix2PixHD baseline. Challenge documentation and static assets are in `docs/` and `docs/images/`.
 
+## Challenge Strategy Reference
+
+Before changing model design, preprocessing assumptions, or evaluation strategy, read `strategy.md`. It summarizes the MAMA-SYNTH task, metric tradeoffs, baseline constraints, and recommended development roadmap.
+
 ## Build, Test, and Development Commands
 
 Install runtime dependencies from the repository root:

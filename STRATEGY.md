@@ -467,15 +467,22 @@ tensorboard \
 
 ---
 
-## 5. 권장 실행 계획 (현 일정 기준)
+## 5. 권장 실행 계획 (내부 가속 일정 기준)
+
+아래 일정은 챌린지 공식 마감표가 아니라 **우리 내부 실행 속도 기준**이다. 2026-05-28 현재 Validation phase가 이미 열려 있으므로, Test phase를 기다리지 말고 빠르게 하한 제출·로컬 검증·개선 후보를 확보한다. 원칙은 "먼저 end-to-end로 살아 있는 제출 경로를 만들고, 이후 성능 개선을 짧은 cycle로 반복"이다.
 
 | 시점 | 작업 | 검증 게이트 |
 |---|---|---|
-| 즉시(~6/1) | identity-baseline GC 제출, Debug phase/Try-out 확인, pix2pixHD baseline 로컬 재현, 로컬 평가 파이프라인(공식 메트릭 import + proxy ③④) 구축 | 리더보드 하한 확보 + 로컬 메트릭 재현 |
-| ~6/15 | **Phase 1**: SUB 타깃 + ROI/FM/perceptual + 종양 D 개선 pix2pixHD 재학습(MAMA-MIA, full-breast) | hold-out에서 LPIPS↓·ROI-SSIM↑·FRD↓ → validation 1회 |
-| ~6/25 | (여력 시) **Phase 2**: latent diffusion(SD AE+ControlNet, SUB), few-step 샘플링 | proxy FRD/AUROC↑, MSE 손실 제한 |
-| 6/25~7/10 | Test phase: 최적 단일모델 선정·제출, 도메인 강건성 점검 | 4그룹 proxy 랭크-평균 최상 모델, 컨테이너 활성화 24h 버퍼 고려해 7/9 이전 업로드 권장 |
-| ~9/27 | Deep-Breath 워크숍 논문(Best Paper €300 대상) | - |
+| D0~D1 | 데이터 루트/symlink 확정, 의존성 설치, 공개 pytest 통과, `identity-baseline` Docker build/test/save | repo+환경 재현 가능, `do_test_run.sh`와 `pytest test_algorithm.py -v` 성공 |
+| D1~D2 | GC Try-out/Debug로 identity 제출 경로 검증, `submission-gan` 가중치 staging 및 로컬 추론 재현 | GC logs에서 input/output slug, GPU/memory/runtime 확인; output `.mha` float32·metadata 보존 |
+| D2~D4 | 로컬 hold-out split, MSE/LPIPS/SSIM-tumor/FRD 평가 harness, MLflow/TensorBoard run 기록 체계 구축 | baseline predictions에 대한 `metrics.json` 생성, run_id/config/split/checkpoint 기록 |
+| D4~D7 | **Phase 1 최소 개선 후보**: pix2pixHD SUB 타깃 + ROI 가중 loss부터 구현/학습, feature-matching/perceptual은 두 번째 ablation | baseline 대비 LPIPS 또는 ROI-SSIM 또는 FRD 중 2개 이상 개선, MSE 큰 악화 없음 |
+| D7~D10 | 개선 후보 Docker화 및 validation 1회 제출 여부 결정 | 로컬 rank-mean proxy 개선 + 컨테이너 smoke test 통과 시 validation 제출 |
+| D10~D14 | **Phase 1 강화**: tumor discriminator/segmentation branch 또는 augmentation/domain robustness ablation | validation feedback과 local proxy가 같은 방향인지 확인, best checkpoint 승격 |
+| D14 | **Phase 2 go/no-go**: latent diffusion 착수 여부 결정 | Phase 1이 정체했고 GPU/시간 여유가 있을 때만 진행; 아니면 pix2pixHD 계열 안정화 집중 |
+| 매일 | 실험 결과 정리, 실패한 run 폐기 기준 적용, 다음 ablation 1~2개만 선정 | MLflow metric table 업데이트, validation 제출 잔여 횟수 확인 |
+
+챌린지 공식 일정(Validation 2026-05-08, Test 2026-06-25, 마감 2026-07-10)은 외부 제약으로 유지하되, 내부 계획은 위 표처럼 최소 1~2주 앞당겨 움직인다. 2026-06-25 전까지는 "성능 좋은 모델을 새로 만들기"보다 "언제든 제출 가능한 모델과 신뢰 가능한 로컬 선택 기준을 확보하기"가 우선이다.
 
 ---
 

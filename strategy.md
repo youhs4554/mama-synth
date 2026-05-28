@@ -8,6 +8,16 @@
 
 ---
 
+## 문서 맵 및 작업 기준
+
+`strategy.md`만 보고도 다음 작업을 진행할 수 있도록, 세부 근거는 아래 로컬 문서를 기준으로 확인한다.
+
+- **챌린지 핵심**: `docs/gc_mamasynth_introduction.md`, `docs/gc_mamasynth_data.md`, `docs/gc_mamasynth_metrics.md`, `docs/gc_mamasynth_timeline.md`, `docs/gc_mamasynth_submissions.md`.
+- **제출/운영**: `docs/mama_synth_custom_model_submission_guide.md`, `docs/mama_synth_identity_baseline_readme.md`, `docs/mama_synth_gan_submission_readme.md`, `docs/gc_doc_building_and_testing_the_container.md`, `docs/gc_doc_runtime_environment.md`, `docs/gc_doc_making_a_challenge_submission.md`, `docs/gc_doc_try_out_your_algorithm.md`, `docs/gc_doc_try_out_your_algorithm_and_publish_a_test_case.md`, `docs/gc_doc_upload_the_model_weights_separately.md`.
+- **GC 설정**: `docs/gc_doc_create_an_algorithm_page.md`, `docs/gc_doc_choose_input_and_output_interfaces.md`, `docs/gc_doc_add_the_algorithm.md`, `docs/gc_doc_exporting_the_container.md`, `docs/gc_doc_linking_a_github_repository_to_your_algorithm.md`.
+- **코드 엔트리포인트**: 전처리 `src/preprocessing/preprocess.py`, 통계 `src/preprocessing/compute_dataset_stats.py`, 평가 `src/evaluation/evaluate.py`, 메트릭 구현 `src/evaluation/evaluators/`, 제출 템플릿 `src/submission/identity-baseline/`, `src/submission/submission-gan/`.
+- 일부 `mama_synth` 계열 문서의 원문 URL은 개인 fork를 가리키지만, 작업 기준은 **현재 로컬 저장소 경로와 공식 `mama-research/mama-synth` I/O 계약**으로 통일한다.
+
 ## 0. 핵심 요약 (TL;DR)
 
 - **Task**: pre-contrast T1 유방 MRI **2D 슬라이스 1장** → **peak-enhancement post-contrast** 슬라이스 1장 합성. 슬라이스는 "악성 종양 면적이 가장 큰" 슬라이스.
@@ -16,7 +26,7 @@
   1. **Subtraction(잔차) 타깃 학습**: post 자체가 아니라 `post − pre`(조영증강 신호)를 예측 → 모든 메트릭 그룹에서 이득.
   2. **Tumor-aware 지도학습**: ROI 가중 loss 또는 mask-conditioning → SSIM-ROI·FRD·AUROC·Dice를 끌어올림.
   3. **Full-breast 학습**: 양측 유방을 함께 학습(대칭성 단서) → single-breast보다 우수.
-- **20GB GPU 현실 권고**: ① 1순위 = **pix2pixHD baseline 개선(+feature-matching+ROI loss+subtraction)** — 저위험·고성능. ② 2순위 = **Latent Diffusion(SD AE 동결 + ControlNet pre-contrast 조건화, CC-Net 방식)** — latent 공간이라 20GB에 들어감, FRD/AUROC 강점. **픽셀공간 full-res DDPM은 피할 것.**
+- **20GB GPU 현실 권고**: 로컬 학습/실험 기준은 RTX A4500 20GB다. ① 1순위 = **pix2pixHD baseline 개선(+feature-matching+ROI loss+subtraction)** — 저위험·고성능. ② 2순위 = **Latent Diffusion(SD AE 동결 + ControlNet pre-contrast 조건화, CC-Net 방식)** — latent 공간이라 20GB에 들어감, FRD/AUROC 강점. **픽셀공간 full-res DDPM은 피할 것.** 제출 추론은 GC T4 16GB/A10G 24GB에서 OOM 없이 돌아야 한다.
 - **검증은 FID가 아니라 FRD로**: FID는 구조를 망가뜨린 모델을 "최고"로 오인할 수 있음(주최자 FRD 논문이 명시).
 - 평가용 분류기/분할(nnU-Net) **가중치는 저장소에 미포함** → 로컬에서 공식 metric 100% 재현은 일부 불가. proxy 검증 파이프라인을 직접 구축해야 함.
 
@@ -46,7 +56,7 @@ DCE-MRI는 유방암 진단·치료계획·모니터링에 핵심이지만, gado
 | 분자아형 | - | Luminal 86% 多 | Luminal 37% / TN 30% (다양) |
 
 - **핵심 함의**: 학습은 미국 다기관, 테스트는 **네덜란드·아르헨티나 외부기관** → **도메인 시프트(스캐너·프로토콜·인구·자기장)에 대한 일반화**가 승부처. 테스트 분포(3T Siemens / 1.5T GE, 지방억제, 축상)에 맞춘 강건성이 중요.
-- **데이터 정책**: 챌린지 데이터 + **공개 데이터셋만** 허용(private 금지). NIH CADR 사용 금지(EO 14117 / 28 CFR 202 준수). 외부 데이터 사용 시 문서화 필수.
+- **데이터/모델 정책**: 챌린지 데이터 + **공개 데이터셋/공개 사전학습 모델만** 허용(private 금지). 공개 리소스는 **Validation phase 시작 전인 2026-05-07 23:59 CET 이전**에 접근 가능해야 한다. NIH CADR 사용 금지(EO 14117 / 28 CFR 202 준수). 외부 데이터·pretrained weight·오픈소스 구현 사용 시 문서화 필수. 평가 파이프라인 점수만 직접 극대화하는 metric gaming은 실격 사유이며, top-3는 전체 학습 코드 제출 요구 가능.
   - 활용 가능 공개 데이터 예: **Duke-Breast-Cancer-MRI**(주최자 baseline이 이걸로 학습), 기타 공개 유방 DCE-MRI.
 
 ### 1.4 평가 구조 (★승부의 핵심)
@@ -171,14 +181,15 @@ DCE-MRI는 유방암 진단·치료계획·모니터링에 핵심이지만, gado
 - **float32 z-score `.mha`**, `output.CopyInformation(input)`로 spacing/origin/direction 보존 필수.
 - 입력은 **단일 2D 슬라이스** → 3D 모델 가정 제거. Docker `linux/amd64`, non-root, `/input` read-only, `/output`·`/tmp` 쓰기가능, GPU 사용 가능(`CUDA_VISIBLE_DEVICES`/`MAMA_GPU_ID`).
 - GC 런타임은 **케이스 1개씩 실행**되고 **네트워크 접근 없음**. 모델 코드·가중치·통계파일·런타임 리소스는 빌드 시 이미지 안(`/opt/...`)에 넣거나 GC model upload 기능으로 제공해야 한다. Dockerfile에서 `/tmp`에 넣은 파일은 런타임에 남지 않는다고 가정.
+- Algorithm 생성 시 GPU/memory를 명시한다. GC 런타임 문서 기준 GPU 인스턴스는 T4 16GB(`ml.g4dn.*`) 또는 A10G 24GB(`ml.g5.*`) 계열이며, 조직/챌린지에 활성화된 타입만 요청 가능하다. 현재 런타임은 NVIDIA driver 535 / CUDA 12.0, `/dev/shm`은 시스템 메모리의 50%, 시스템용 1GiB RAM 예약, phase별 runtime limit 적용.
 - **baseline 2종**: `identity-baseline`(pass-through, 인프라 점검용), `submission-gan`(medigan `00023` pix2pixHD; z-score↔uint8 PNG 브리징 포함, 가중치는 빌드시 외부 staging).
 - 제출 템플릿 선택: 경량/무가중치 모델은 `identity-baseline` 복사, GPU+외부 가중치 모델은 `submission-gan` 복사가 더 안전하다(`do_build.sh`의 `MODEL_WEIGHTS_DIR` staging과 GPU Docker 설정 재사용).
 - 커스텀 모델 `inference.py` 필수 흐름: 입력 `.mha` 탐색 → SimpleITK 로드 → 학습 스케일에 맞게 전처리 → 모델 추론 → `float32` 배열 저장 → `CopyInformation(input)` → `output.mha` 기록.
-- 가중치 배포 선택지: ① 컨테이너 내부 `resources/` 또는 `models/`로 COPY, ② GC *Models* 페이지에 tarball 업로드 후 런타임 `/opt/ml/model/`에서 로드. 큰 가중치는 ②가 업데이트/용량 관리에 유리하다.
+- 가중치 배포 선택지: ① 컨테이너 내부 `resources/` 또는 `models/`로 COPY, ② GC *Models* 페이지에 tarball 업로드 후 런타임 `/opt/ml/model/`에서 로드. 큰 가중치는 ②가 업데이트/용량 관리에 유리하다. 두 방식을 섞지 말고, `MODEL_WEIGHTS_DIR` staging 모델인지 `/opt/ml/model/` 로딩 모델인지 `inference.py`와 테스트에서 명확히 고정한다.
 - 로컬 제출 검증 순서: `./do_build.sh` → `./do_test_run.sh`(필요시 `USE_GPU=0`) → `pytest test_algorithm.py -v` → `./do_save.sh` → GC Algorithm page의 *Containers → Upload a Container*. 컨테이너 활성화는 보통 수십 분 걸릴 수 있으며, 이후 새 컨테이너 업로드로 교체 가능.
-- GC 제출 운영: challenge *Submit* 페이지에서 phase를 선택하고 editor 권한이 있는 Algorithm을 고른다. Challenge용 Algorithm 생성 시 인터페이스는 자동 구성되며 title·GPU·memory만 설정한다. 새 컨테이너 업로드는 제출을 자동 생성하지 않으므로, 활성화 후 challenge phase에 다시 수동 제출해야 한다.
-- 컨테이너는 가능하면 10GB 미만으로 유지하고, 큰 가중치는 별도 model upload를 선호한다. `do_save.sh`의 `VERSION`을 제출마다 올려 컨테이너를 구분한다.
-- 관련 `docs/` 참조: `gc_mamasynth_submissions.md`, `mama_synth_custom_model_submission_guide.md`, `mama_synth_identity_baseline_readme.md`, `mama_synth_gan_submission_readme.md`, `gc_doc_making_a_challenge_submission.md`, `gc_doc_create_an_algorithm_page.md`, `gc_doc_building_and_testing_the_container.md`, `gc_doc_runtime_environment.md`, `gc_doc_exporting_the_container.md`, `gc_doc_upload_the_model_weights_separately.md`.
+- GC 제출 운영: challenge *Submit* 페이지에서 phase를 선택하고 editor 권한이 있는 Algorithm을 고른다. Challenge용 Algorithm 생성 시 인터페이스는 자동 구성되며 title·GPU·memory만 설정한다. 새 컨테이너 업로드는 제출을 자동 생성하지 않으므로, 활성화 후 challenge phase에 다시 수동 제출해야 한다. Validation 제출을 쓰기 전에 **Try-out Algorithm**으로 known `.mha` 1건을 실행하고 Results/Logs에서 출력·GPU·memory를 확인한 뒤, 가능하면 Debug phase를 먼저 사용한다.
+- 컨테이너는 가능하면 10GB 미만으로 유지하고, 큰 가중치는 별도 model upload를 선호한다. `do_save.sh`의 `VERSION`을 제출마다 올려 컨테이너를 구분한다. 컨테이너 활성화는 보통 ~20분이나 최대 24시간까지 잡고, phase별 최대 runtime 안에 추론이 끝나는지 GC logs에서 확인한다.
+- 관련 `docs/` 참조: `gc_mamasynth_submissions.md`, `gc_mamasynth_debug_leaderboard.md`, `mama_synth_custom_model_submission_guide.md`, `mama_synth_identity_baseline_readme.md`, `mama_synth_gan_submission_readme.md`, `gc_doc_create_your_own_algorithm.md`, `gc_doc_download_example_code.md`, `gc_doc_add_the_algorithm.md`, `gc_doc_making_a_challenge_submission.md`, `gc_doc_create_an_algorithm_page.md`, `gc_doc_choose_input_and_output_interfaces.md`, `gc_doc_building_and_testing_the_container.md`, `gc_doc_runtime_environment.md`, `gc_doc_exporting_the_container.md`, `gc_doc_upload_the_model_weights_separately.md`, `gc_doc_try_out_your_algorithm.md`, `gc_doc_try_out_your_algorithm_and_publish_a_test_case.md`, `gc_doc_linking_a_github_repository_to_your_algorithm.md`.
 
 ### 3.4 의존성 (`requirements.txt` 요지)
 `SimpleITK>=2.2`, `scikit-learn>=1.2`, `scipy>=1.10`, `scikit-image>=0.20`, `pyradiomics`(AIM-Harvard git master — PyPI는 py≥3.10 깨짐), `frd-score>=1.0`, `torchmetrics>=1.0`, `torch<2.10`, `nnunetv2>=2.4`, `xgboost<2.0`. **`lpips` 패키지·monai 없음.**
@@ -188,9 +199,41 @@ DCE-MRI는 유방암 진단·치료계획·모니터링에 핵심이지만, gado
 - **ground_truth 데이터도 미포함.** → 로컬 검증은 **자체 hold-out + 자체 proxy 분할/분류기**로 구성해야 함(아래 §4.6).
 - **GC 환경에서만** 공식 분류기/nnU-Net으로 ③④가 채점됨.
 
+### 3.6 실행 명령 치트시트
+```bash
+# 의존성 설치
+pip install -r requirements.txt
+
+# 공개 테스트 실행
+PYTHONPATH=src/evaluation pytest src/evaluation/tests src/preprocessing/test_preprocess.py -v
+
+# 로컬 공식 평가 엔트리포인트(데이터/모델 경로 필요)
+export MAMA_PREDICTIONS_DIR=/path/to/predictions
+export MAMA_GT_DIR=/path/to/ground_truth
+export MAMA_MASKS_DIR=/path/to/masks
+export MAMA_MODELS_DIR=/path/to/evaluation_models
+export MAMA_OUTPUT_DIR=/path/to/metrics_out
+python src/evaluation/evaluate.py
+
+# identity baseline 컨테이너
+cd src/submission/identity-baseline
+./do_build.sh && ./do_test_run.sh && pytest test_algorithm.py -v && ./do_save.sh
+
+# pix2pixHD GAN baseline 컨테이너
+cd ../submission-gan
+export MODEL_WEIGHTS_DIR=/path/to/00023
+./do_build.sh && ./do_test_run.sh && pytest test_algorithm.py -v && ./do_save.sh
+
+# 커스텀 모델 템플릿 시작점
+cd ..
+cp -r submission-gan submission-my-model
+```
+
 ---
 
-## 4. 접근법 제안 (단일 RTX A4500 20GB 한도)
+## 4. 접근법 제안 (로컬 RTX A4500 20GB 한도)
+
+아래 설계는 로컬 학습/실험을 RTX A4500 20GB 1장에 맞춘 것이다. 최종 제출 컨테이너는 GC에서 활성화된 T4 16GB 또는 A10G 24GB 추론 환경에서도 별도 검증해야 한다.
 
 ### 4.1 설계 원칙 (문헌·평가구조에서 도출)
 1. **Subtraction 타깃**: 모델은 `Δ = post − pre`를 예측, 추론 시 `post_hat = pre + Δ_hat`. 정적 해부 제거 → ②③④ 동시 이득(가장 재현성 높은 "공짜 점심").
@@ -204,8 +247,9 @@ DCE-MRI는 유방암 진단·치료계획·모니터링에 핵심이지만, gado
 **Phase 0 — 인프라 검증 (1~2일)**
 - `identity-baseline`로 GC 제출 end-to-end 확인 → 리더보드 하한 확보.
 - `submission-gan`(pix2pixHD `00023`) 빌드/로컬 추론 성공 → 정규화 브리징·가중치 staging 이해.
-- 커스텀 모델은 먼저 `submission-gan` 템플릿 복사 후 `inference.py`, `requirements.txt`, `Dockerfile`, `do_build.sh`만 교체한다. `MODEL_WEIGHTS_DIR` 기반 staging 또는 GC `/opt/ml/model/` 로딩 중 하나를 명시적으로 선택한다.
+- 커스텀 모델은 먼저 `submission-gan` 템플릿 복사 후 `inference.py`, `requirements.txt`, `Dockerfile`, `do_build.sh`만 교체한다. `MODEL_WEIGHTS_DIR` 기반 staging 또는 GC `/opt/ml/model/` 로딩 중 하나를 명시적으로 선택한다(§3.6 명령으로 검증).
 - 검증: Docker 빌드 성공 + `do_test_run.sh` 성공 + `pytest test_algorithm.py -v` 성공 + `output.mha` float32·동일 dims·메타데이터 보존.
+- GC 활성화 후 `Try-out Algorithm`으로 known `.mha`를 실행하고 Results/Logs에서 stdout/stderr, GPU, memory, runtime을 확인한다. Validation 제출 전 Debug phase로 한 번 더 확인한다.
 
 **Phase 1 — pix2pixHD baseline 개선 (저위험 메인, 1~2주)**
 - baseline에 ① **subtraction 타깃** ② **ROI 가중 + feature-matching + LPIPS-style perceptual loss** ③ **TSGAN식 종양 판별자/분할 분기**(curriculum) 추가.
@@ -248,23 +292,33 @@ L = λ_pix · L1(Δ_hat, Δ_gt)                      # 픽셀 충실도(MSE 그�
 
 ### 4.6 로컬 검증 전략 (공식 가중치 부재 대응)
 - **자체 hold-out**: MAMA-MIA를 train/val로 분할(센터 단위 분할로 도메인시프트 모사 권장).
-- **메트릭**: MSE·LPIPS(torchmetrics alex, ±5σ 클립)·SSIM-tumor(skimage, data_range=10, win7)·**FRD(frd-score v1, 종양마스크)**를 **공식 구현 그대로** 재현(코드가 공개되어 있으니 그대로 import).
+- **메트릭**: MSE·LPIPS(torchmetrics alex, ±5σ 클립)·SSIM-tumor(skimage, data_range=10, win7)·**FRD(frd-score v1, 종양마스크)**를 **공식 구현 그대로** 재현한다. 엔트리포인트는 `src/evaluation/evaluate.py`, 구현은 `src/evaluation/evaluators/{image_metrics,roi_metrics,classification,segmentation}.py`, 경로 설정은 `MAMA_PREDICTIONS_DIR`, `MAMA_GT_DIR`, `MAMA_MASKS_DIR`, `MAMA_MODELS_DIR`, `MAMA_OUTPUT_DIR`를 사용한다.
 - **③④ proxy**: 종양 ROI radiomics + XGBoost로 pre-vs-post / tumor-vs-미러ROI AUROC 자체 학습; 자체 nnU-Net(또는 MAMA-MIA 학습 분할기)으로 Dice/HD95 proxy. **절대값은 GC와 다르지만 상대비교/체크포인트 선택엔 충분.**
 - **모델선택**: 4그룹 proxy를 **랭크-평균**으로 합쳐(공식 랭킹 모사) 단일 점수로 체크포인트 선택.
 
 ### 4.7 리스크 & 함정 체크리스트
+**모델/평가 게이트**
 - [ ] 출력 스케일을 **z-score float32**로 정확히 맞춤(역정규화 누락 시 MSE 폭망).
 - [ ] `CopyInformation` 호출(메타데이터) — 누락 시 평가 오류.
 - [ ] 90° 회전 규약 일치(전처리가 rot90 적용 → 학습/추론 일관).
 - [ ] mask-conditioning 모델은 **테스트엔 마스크 없음** → 마스크-free 추론경로 필수.
 - [ ] FID 대신 **FRD**로 검증(FID 신뢰 금지).
 - [ ] validation 제출 **5회 제한** → 로컬에서 충분히 검증 후 제출.
-- [ ] 외부 데이터는 **공개+문서화**만(private/NIH CADR 금지).
+
+**제출/GC 게이트**
 - [ ] Docker `linux/amd64`·non-root·`/input` read-only 가정·`/output` 쓰기권한.
 - [ ] GC 런타임 **네트워크 없음** → 가중치/통계/코드/리소스 이미지 포함 또는 `/opt/ml/model/` 업로드.
+- [ ] GPU/memory 설정은 GC Algorithm form에서 명시하고, T4 16GB/A10G 24GB 중 활성화된 타입과 phase runtime limit에 맞춘다.
+- [ ] 별도 model upload 사용 시 tarball을 Algorithm *Models* page에 업로드하고, `inference.py`는 `/opt/ml/model/`만 바라보게 한다.
 - [ ] `./do_build.sh` → `./do_test_run.sh` → `pytest test_algorithm.py -v` → `./do_save.sh` 순서로 제출 전 검증.
+- [ ] GC `Try-out Algorithm` + Results/Logs 확인 + Debug phase를 거친 뒤 Validation 제출을 사용.
 - [ ] 새 컨테이너 활성화 후 **challenge phase에 다시 수동 제출**(업로드만으로 제출 완료 아님).
 - [ ] 컨테이너 10GB 미만 권장, 큰 모델은 GC model upload로 분리.
+
+**데이터/규정 게이트**
+- [ ] 외부 데이터·pretrained model은 **공개+문서화**만(private/NIH CADR 금지), 2026-05-07 23:59 CET 이전 공개 리소스인지 확인.
+- [ ] metric gaming 금지, final evaluation model이 validation/released checkpoint와 다를 수 있음을 가정.
+- [ ] top-3 진입 시 training code·inference script·외부 리소스 문서 제출 가능성을 준비.
 - [ ] 도메인시프트(3T Siemens / 1.5T GE) 대비 augmentation/정규화 강건화.
 
 ---
@@ -273,10 +327,10 @@ L = λ_pix · L1(Δ_hat, Δ_gt)                      # 픽셀 충실도(MSE 그�
 
 | 시점 | 작업 | 검증 게이트 |
 |---|---|---|
-| 즉시(~6/1) | identity-baseline GC 제출, pix2pixHD baseline 로컬 재현, 로컬 평가 파이프라인(공식 메트릭 import + proxy ③④) 구축 | 리더보드 하한 확보 + 로컬 메트릭 재현 |
+| 즉시(~6/1) | identity-baseline GC 제출, Debug phase/Try-out 확인, pix2pixHD baseline 로컬 재현, 로컬 평가 파이프라인(공식 메트릭 import + proxy ③④) 구축 | 리더보드 하한 확보 + 로컬 메트릭 재현 |
 | ~6/15 | **Phase 1**: SUB 타깃 + ROI/FM/perceptual + 종양 D 개선 pix2pixHD 재학습(MAMA-MIA, full-breast) | hold-out에서 LPIPS↓·ROI-SSIM↑·FRD↓ → validation 1회 |
 | ~6/25 | (여력 시) **Phase 2**: latent diffusion(SD AE+ControlNet, SUB), few-step 샘플링 | proxy FRD/AUROC↑, MSE 손실 제한 |
-| 6/25~7/10 | Test phase: 최적 단일모델 선정·제출, 도메인 강건성 점검 | 4그룹 proxy 랭크-평균 최상 모델 |
+| 6/25~7/10 | Test phase: 최적 단일모델 선정·제출, 도메인 강건성 점검 | 4그룹 proxy 랭크-평균 최상 모델, 컨테이너 활성화 24h 버퍼 고려해 7/9 이전 업로드 권장 |
 | ~9/27 | Deep-Breath 워크숍 논문(Best Paper €300 대상) | - |
 
 ---

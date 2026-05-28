@@ -1,0 +1,289 @@
+# MAMA-SYNTH 2026 (MICCAI) 참가 전략
+
+> Pre-contrast T1 유방 MRI → 합성 peak-enhancement post-contrast DCE-MRI 합성 챌린지에 대한
+> Task 분석 · 선행연구 · 주최측 전처리/평가 코드 분석 · 단일 GPU(RTX A4500 20GB) 기반 접근법 제안.
+>
+> 작성 근거: `docs/` 내 공식 문서 + `mama-research/mama-synth` 저장소 코드 분석 + 최신 문헌 리서치.
+> 작성일: 2026-05-28
+
+---
+
+## 0. 핵심 요약 (TL;DR)
+
+- **Task**: pre-contrast T1 유방 MRI **2D 슬라이스 1장** → **peak-enhancement post-contrast** 슬라이스 1장 합성. 슬라이스는 "악성 종양 면적이 가장 큰" 슬라이스.
+- **평가는 4개 그룹의 동등가중 평균 랭킹**: ① 영상충실도(MSE↓, LPIPS↓) ② 종양 ROI 사실성(SSIM↑, FRD↓) ③ 다운스트림 분류(AUROC pre-vs-post↑, tumor-vs-비종양↑) ④ 다운스트림 분할(Dice↑, HD95↓). **한 메트릭만 과최적화하면 진다.**
+- **가장 재현성 높은 설계 원칙 3가지** (문헌·주최자 논문 공통):
+  1. **Subtraction(잔차) 타깃 학습**: post 자체가 아니라 `post − pre`(조영증강 신호)를 예측 → 모든 메트릭 그룹에서 이득.
+  2. **Tumor-aware 지도학습**: ROI 가중 loss 또는 mask-conditioning → SSIM-ROI·FRD·AUROC·Dice를 끌어올림.
+  3. **Full-breast 학습**: 양측 유방을 함께 학습(대칭성 단서) → single-breast보다 우수.
+- **20GB GPU 현실 권고**: ① 1순위 = **pix2pixHD baseline 개선(+feature-matching+ROI loss+subtraction)** — 저위험·고성능. ② 2순위 = **Latent Diffusion(SD AE 동결 + ControlNet pre-contrast 조건화, CC-Net 방식)** — latent 공간이라 20GB에 들어감, FRD/AUROC 강점. **픽셀공간 full-res DDPM은 피할 것.**
+- **검증은 FID가 아니라 FRD로**: FID는 구조를 망가뜨린 모델을 "최고"로 오인할 수 있음(주최자 FRD 논문이 명시).
+- 평가용 분류기/분할(nnU-Net) **가중치는 저장소에 미포함** → 로컬에서 공식 metric 100% 재현은 일부 불가. proxy 검증 파이프라인을 직접 구축해야 함.
+
+---
+
+## 1. 챌린지 Task 분석
+
+### 1.1 목표와 동기
+DCE-MRI는 유방암 진단·치료계획·모니터링에 핵심이지만, gadolinium 조영제는 **체내 침착/신독성**, **환경 오염(식수에서 검출)**, **비용·접근성** 문제를 야기한다. MAMA-SYNTH는 **조영제 없이(contrast-free) 또는 저감(contrast-reduced)** 워크플로우를 위한 가상 조영증강(virtual contrast enhancement, VCE) 생성모델의 **표준 벤치마크**를 제공한다.
+
+### 1.2 입출력 정의
+- **입력**: pre-contrast T1-weighted 유방 MRI **2D 축상(axial) 슬라이스** 1장. (GC 인터페이스 slug `pre-contrast-dce-mri-slice-breast`)
+- **출력**: 같은 슬라이스에 대응하는 **peak-enhancement 시점**의 합성 post-contrast DCE-MRI 슬라이스 1장. (slug `synthetic-contrast-dce-mri-slice-breast`)
+- **슬라이스 선택**: 환자별 DCE 검사에서 **악성 종양 면적이 가장 큰 슬라이스**를, **peak-enhancement phase**(종양 영역 신호강도가 최대인 시점)에서 추출.
+- **포맷**: 2D `float32` `.mha`, **z-score 정규화**(학습셋 pre-contrast mean/std 기준). spacing/origin/direction 메타데이터 보존 필수.
+
+### 1.3 데이터셋
+| 항목 | Training (MAMA-MIA) | Test A (Radboud UMC, NL) | Test B (Inst. A. Fleming, AR) |
+|---|---|---|---|
+| 역할 | 개발/학습 | 외부 테스트 | 외부 테스트 |
+| 케이스 수 | 1,506 (25+ 센터, 미국) | 200 | 100 |
+| 영상 크기 | 가변 | 416×416 | 512×512 |
+| 자기장 | 1.5T 72% / 3T 28% | 3T | 1.5T |
+| 제조사 | GE 64% / Siemens 27% / Philips 9% | Siemens | GE |
+| 평면 | Axial 84% / Sagittal 16% | Axial | Axial |
+| 지방억제 | - | Yes | Yes |
+| 분자아형 | - | Luminal 86% 多 | Luminal 37% / TN 30% (다양) |
+
+- **핵심 함의**: 학습은 미국 다기관, 테스트는 **네덜란드·아르헨티나 외부기관** → **도메인 시프트(스캐너·프로토콜·인구·자기장)에 대한 일반화**가 승부처. 테스트 분포(3T Siemens / 1.5T GE, 지방억제, 축상)에 맞춘 강건성이 중요.
+- **데이터 정책**: 챌린지 데이터 + **공개 데이터셋만** 허용(private 금지). NIH CADR 사용 금지(EO 14117 / 28 CFR 202 준수). 외부 데이터 사용 시 문서화 필수.
+  - 활용 가능 공개 데이터 예: **Duke-Breast-Cancer-MRI**(주최자 baseline이 이걸로 학습), 기타 공개 유방 DCE-MRI.
+
+### 1.4 평가 구조 (★승부의 핵심)
+4개 그룹, 그룹별 랭킹 후 **4그룹 랭킹의 단순평균 = 최종 순위**. → **균형 잡힌 다목적 성능**이 좁은 단일 최적화를 이긴다.
+
+| 그룹 | 메트릭 | 방향 | 의미 |
+|---|---|---|---|
+| ① 영상충실도 | MSE, LPIPS | ↓, ↓ | 픽셀+지각적 유사도 |
+| ② 종양 ROI 사실성 | SSIM(tumor), FRD | ↑, ↓ | 국소 조영증강 사실성/방사체학 분포 |
+| ③ 다운스트림 분류 | AUROC(pre vs post), AUROC(tumor vs 비종양) | ↑, ↑ | 조영/종양 정보 보존 |
+| ④ 다운스트림 분할 | Dice, HD95 | ↑, ↓ | 병변 윤곽 묘사 유용성 |
+
+> **중대한 긴장관계**: MSE(L2) 최적화는 **regression-to-mean 블러**를 유발해 ②③④가 보상하는 "선명한 종양 조영증강"을 뭉갠다. 반대로 GAN/diffusion은 선명하지만 hallucination으로 MSE/LPIPS를 해칠 수 있다(perception–distortion tradeoff). 4그룹 평균 랭킹이므로 **이 균형을 잡는 팀이 이긴다.**
+
+### 1.5 단계 & 일정
+- **Validation phase**: 2026-05-08 개시, 50 케이스, **최대 5회 제출**로 튜닝.
+- **Test phase**: 2026-06-25 개시, 숨겨진 300 케이스, 공식 순위 결정.
+- **마감**: 2026-07-10 / 결과 공개 2026-08-01 / 수상 발표 2026-09-27 (Deep-Breath Workshop @ MICCAI 2026).
+- **상금**: 1st €500 / 2nd €250 / 3rd €150 / Best Paper €300(Deep-Breath 워크숍 논문, 리더보드 무관).
+- **제출 형식**: Docker 컨테이너(`linux/amd64`, non-root), GC 플랫폼 업로드. SDK 불필요.
+
+> 오늘(2026-05-28) 기준 **Validation phase 이미 개시(5/8)**, Test phase 개시까지 약 4주. 제출 5회 제한이 있으므로 **로컬 검증을 견고히 한 뒤** validation 제출을 아껴 써야 한다.
+
+---
+
+## 2. 선행연구 (Previous Works, 최신 위주)
+
+### 2.1 유방 MRI 가상 조영증강 — 주최자 계열(★필독)
+주최자(Osuala, Garrucho, Joshi, Han, Zhang, Lekadir, Diaz 등)가 이 파이프라인 대부분을 이미 출판했다. **이들 논문이 곧 챌린지 설계 의도**이다.
+
+- **Osuala et al., "Pre- to Post-Contrast Breast MRI Synthesis for Enhanced Tumour Segmentation"** (SPIE MI 2024, arXiv:2311.10879, code: `RichardObi/pre_post_synthesis`).
+  **← 챌린지 baseline (medigan model `00023`, pix2pixHD).** Duke 데이터, 512² 2D 축상. 핵심 발견: ① 합성 post가 pre보다 real post에 의미·지각적으로 훨씬 가까움, ② **subtraction(post−pre) 영상이 재구성 메트릭을 크게 개선**, ③ 합성데이터 증강이 다운스트림 3D 분할을 향상. 모델선택 지표 **SAMe** 제안.
+
+- **Osuala et al., "Towards Learning Contrast Kinetics with Multi-Condition Latent Diffusion Models" (CC-Net)** (MICCAI 2024, arXiv:2403.13890, code: `RichardObi/ccnet`).
+  **← 가장 직접적인 diffusion 방법.** 동결된 SD2.1 AE + **ControlNet**(pre-contrast 주입) + 시간(acquisition time) 다중조건화로 **DCE 시퀀스(조영동역학)** 생성. 20GB 학습에 중요한 실전 팁: latent 공간으로 메모리 절감, **AE latent scale s≈0.1**(기본 0.18215 아님)이 품질↑, **gradient value clipping**으로 폭주 방지, DDPM 1000 step, AdamW, batch 8–32.
+
+- **Lang, Osuala et al., "Temporal Neural Cellular Automata (TeNCA)"** (2025, arXiv:2506.18720).
+  경량 NCA로 조영증강을 물리적으로 그럴듯한 시간진행으로 모델링. **CC-Net 대비 image-level 메트릭(LPIPS·SSIM·MS-SSIM·PSNR)에서 우세, 파라미터 훨씬 적음**. 반면 CC-Net은 분포메트릭(FID/FRD) 우세하나 "hallucination 경향". → **fidelity vs realism 분열을 명시**. 20GB에 trivially 적합.
+
+- **Ibarra, Osuala et al., "Comparing Conditional Diffusion Models for Synthesizing CE Breast MRI from Pre-Contrast"** (Deep-Breath @ MICCAI 2025, arXiv:2508.13776).
+  **← 설계선택 결정에 가장 유용(MAMA-MIA 기반).** DDPM 변형 체계적 비교 결과:
+  - **SUB(subtraction) 타깃이 직접 PC 합성을 일관되게 능가** (image-level + ROI/FRD).
+  - **Tumor-aware loss(SUB-ROI)가 ROI 메트릭·FRD/FID 추가 개선.**
+  - **Mask-conditioning(PC-ROI(M100))이 종양 조영증강을 눈에 띄게 개선**(종양 위치 근사 필요).
+  - **Full-breast 학습이 single-breast 능가**(대칭성 단서).
+  - 6인 전문가 리더 스터디로 사실성 검증.
+
+- **Han et al., "Tumor-Attentive Segmentation-Guided GAN (TSGAN)"** (IEEE Access 2022, PMC9721354).
+  **← 종양인지 유방 VCE GAN의 정석.** pix2pixHD 위에 **국소 종양 판별자 + 분할 분기(Dice+BCE) + curriculum learning**(전체유방→종양ROI). 종양 ROI에서 SSIM 0.868/PSNR 72.8 (Pix2Pix 0.713/63.9). 박스 약지도(TSGAN-Box)도 가능 → **MAMA-SYNTH의 ROI/분할 메트릭에 직결.**
+
+- **인접 연구**: Müller-Franzes/Truhn et al., *Radiology* 2023 (CE 유방 MRI 시뮬레이션 리더 스터디); Fonnegra et al. 2024 (arXiv:2409.01596, 등록+시간동역학 TI curve 모델링).
+
+### 2.2 타 장기 조영제 저감 (전이 가능한 교훈)
+- **Gong et al.** "Deep learning enables reduced gadolinium dose for brain MRI" (*JMRI* 2018) — 2D U-Net+residual로 **10× 조영제 저감**. 시초.
+- **Pinetz et al.** "Gadolinium dose reduction … conditional deep learning" (arXiv:2403.03539, 2024) — **조영 신호(residual)만 예측**, dose/noise/scanner 조건화로 정확한 증강. → "전체 영상이 아니라 증강 잔차를 예측하라"(§2.1 SUB와 동일 교훈).
+
+### 2.3 일반 의료영상 I2I 아키텍처
+**GAN(빠름·선명·mode collapse 위험)**
+- **pix2pix**(CVPR'17), **pix2pixHD**(CVPR'18) — paired cGAN + L1 + adversarial + **feature-matching loss**(블러 완화). **← 챌린지 baseline.**
+- **SPADE**(2019) — mask-conditioning. **MedGAN**(2018) — perceptual+style+content loss.
+- CycleGAN(unpaired) — MAMA-MIA는 paired라 적합성 낮음.
+
+**Diffusion(고충실도·추론 느림 — 단, 추론속도는 채점 안 됨)**
+- **Palette**(SIGGRAPH'22) — 조건부 I2I diffusion 표준 레시피.
+- **BBDM: Brownian Bridge Diffusion**(CVPR'23, arXiv:2205.07680) — 소스↔타깃 직접 stochastic bridge. 의료 결정론적 변형(arXiv:2503.22531, 2025).
+- **SynDiff**(IEEE TMI 2023, arXiv:2207.08208) — **adversarial diffusion**(큰 reverse step) + cycle-consistency, **빠르고 unpaired** 다중대비 MRI.
+- **Latent Diffusion(LDM)**(CVPR'22) — CC-Net 백본, **20GB의 핵심 enabler**(압축 latent). **MedLoRD**(2025)는 24GB에서 조건부 LDM 학습 확인.
+
+**판정**: paired·픽셀충실도 채점 환경에선 잘 튜닝된 GAN/회귀가 여전히 경쟁력. MAMA-MIA에서는 주최자 비교 결과 **subtraction-타깃·tumor-aware/mask-conditioned DDPM**이 우세, TeNCA는 경량으로 image-level 우세.
+
+### 2.4 FRD — 직접 최적화 대상
+- **Konz, Osuala et al., "Fréchet Radiomic Distance (FRD)"** (arXiv:2412.01496, code `RichardObi/frd-score`). FID의 ImageNet feature를 **표준화된 해석가능 radiomic feature**로 대체. 의료 I2I에서 FID/KID/CMMD/RadFID 능가. **결정적 경고**: FID/KID/CMMD가 골구조를 파괴한 MUNIT을 "최고"로 오인 → **MAMA-SYNTH가 종양패치 FRD를 쓰는 이유.** → 픽셀 loss뿐 아니라 **종양 ROI의 radiomic feature 분포를 맞춰라.**
+
+### 2.5 유사 챌린지: SynthRAD2023 (가장 정보가치 높은 유사 사례)
+- Huijben et al., *Medical Image Analysis* 2024 (arXiv:2403.08447). MRI→CT / CBCT→CT, MeanThenRank.
+  - **Transformer 백본이 CNN U-Net 능가**(상위권).
+  - **영상유사도 메트릭과 다운스트림(dose) 정확도 간 유의 상관 없음** → MAMA-SYNTH 다중그룹 랭킹의 실증 근거이자 "MSE 과적합 금지" 경고.
+  - 우승 다수가 **조건부 GAN + (점증하는) diffusion**, 전처리/정규화·2.5D 공간배치가 결정적.
+
+### 2.6 선행연구 종합 — "무엇이 통하고 왜인가"
+| 교훈 | 근거 | 챌린지 적용 |
+|---|---|---|
+| **Subtraction(잔차) 타깃** | Osuala'24, Ibarra'25, Pinetz'24 | post 직접합성 대신 `post−pre` 예측, 추론 시 pre 더해 복원 |
+| **Tumor-aware loss / mask-conditioning** | TSGAN'22, Ibarra'25 | ROI 가중 + (가능시) 종양마스크 조건화 → ②③④ 향상 |
+| **Full-breast 학습** | Ibarra'25 | 단측 크롭 금지, 양측 함께 |
+| **FRD로 검증, FID 불신** | Konz'24 | 로컬에 `frd-score` 설치, 종양패치 radiomics 점검 |
+| **Perception–distortion 균형** | Blau&Michaeli'18, YODA arXiv:2505.02048 | regression-style/few-step 샘플링으로 곡선상 유리점 선택 |
+| **정규화/도메인 강건성** | SynthRAD'23 | train/inference z-score 정확히 일치, 테스트 분포(3T/1.5T) 강건화 |
+
+---
+
+## 3. 전처리 & 평가 방법 (주최측 코드 분석: `mama-research/mama-synth`)
+
+> 저장소 구조: `src/preprocessing/`, `src/evaluation/{evaluators,models,ground_truth,tests}`, `src/submission/{identity-baseline, submission-gan}`.
+
+### 3.1 전처리 파이프라인 (`src/preprocessing/preprocess.py`)
+1. **Peak phase 선택** (`find_peak_phase`): 전체 3D 볼륨에서 각 phase별 **종양마스크 내부 평균강도**(`volume[seg>0]`) 계산 → 최대 phase가 peak. pre-contrast = phase index 0(최저).
+2. **Slice 선택** (`find_largest_label_slice`): through-plane 축에서 **종양 라벨 voxel 수가 최대**인 슬라이스(`np.argmax`). 축 결정(`determine_slice_axis`)은 크기·spacing 휴리스틱(애매하면 `--skip_ambiguous_shapes`로 스킵).
+3. **z-score 정규화** (`zscore_normalise`): `(img − mean)/std` (float32, std=0이면 0). **pre와 peak 모두 동일한 pre-contrast 전역 통계 사용.** `--global_stats` 필수.
+   - **`training_pre_stats.json` 실제 값**: `mean = 107.4119`, `std = 219.9618`, `n_voxels ≈ 2.136e10`, `n_patients = 1506`. (Welford 온라인 알고리즘, 최저 phase 볼륨 기준)
+4. **출력**: SimpleITK `.mha`, **float32**(`nan_to_num`→`astype float32`), 마스크는 int16. **리샘플/리사이즈 없음**(native 슬라이스 크기 유지). 저장 전 **90° CCW 회전**(`np.rot90(k=1)`)을 pre/peak/mask에 적용. PNG는 시각화용(정규화 스펙 아님).
+5. **지방억제·유방크롭·bias 보정 없음** (전처리 단계엔 종양마스크 외 영역 처리 없음). 대측유방 처리는 평가단계에만 존재.
+
+> **함의**: 입력은 z-score(평균0·표준편차1 근방, 음수 포함) float32. 모델은 이 스케일에서 동작하거나, baseline GAN처럼 `raw = z*std+mean`로 역정규화→처리→재정규화해야 함. 출력도 **동일 z-score 스케일 float32**여야 평가가 정상.
+
+### 3.2 평가 파이프라인 (`src/evaluation/evaluators/`)
+`evaluate.py::run_evaluation()`가 4개 evaluator 순차 실행, 실패해도 나머지 진행, `metrics.json` 출력. **모든 메트릭은 z-score 정규화 영상에서 직접 계산**(per-image 추가 정규화 없음 — MSE/LPIPS/SSIM 편향 방지). 예측은 사전 정규화 가정.
+
+- **MSE** (`image_metrics.py`): `np.mean((pred−gt)**2)` (float64, per-case).
+- **LPIPS**: **torchmetrics** `LearnedPerceptualImagePatchSimilarity(net_type="alex")` — **AlexNet 백본**(레거시 `lpips` 패키지 아님). 영상 **±5σ 클립** 후 동일 결정적 변환으로 [-1,1] 매핑(per-image min-max 아님).
+- **SSIM(tumor)** (`roi_metrics.py`): `skimage structural_similarity(data_range=10.0, full=True)`로 **전체영상 SSIM map** 계산 후 **종양마스크 내부만 평균**(`ssim_map[mask].mean()`), win_size=7. `ssim_tumor`로 보고.
+- **FRD**: **`frd-score`** 라이브러리, `compute_frd([gt,pred], paths_masks=[mask,mask], frd_version="v1")`. v1 = z-score/D1 정규화, **~464 radiomic feature**(Original+LoG+Wavelet), 종양마스크 조건. **aggregate scalar**(≥2 케이스 필요).
+- **분류 AUROC 2종** (`classification.py`, aggregate):
+  - **contrast**: 합성-post(라벨1) vs real pre(라벨0), **종양 ROI radiomic feature**.
+  - **tumor_roi**: 종양 ROI(1) vs **대측 미러링 ROI**(0). 미러는 `mirror_utils.create_mirrored_mask()`(중앙선 검출 후 좌우 미러).
+  - 분류기: `RadiomicsClassifier`(기본 `XGBClassifier(n_estimators=100, max_depth=5)`, pyradiomics IBSI feature) 또는 `CNNClassifier`(timm `efficientnet_b0`, 224). `EnsembleClassifier`로 `{task}_classifier*.pkl/.pt` 자동탐색.
+- **분할 Dice/HD95** (`segmentation.py`): **nnU-Net v2**(`nnUNetPredictor`, tile_step 0.5, gaussian+mirroring TTA, fold 0, `checkpoint_final.pth`)로 합성영상에 추론→GT마스크 비교. Dice=`2|∩|/(|p|+|g|)`(둘 다 비면 1.0), HD95=거리변환 기반 95퍼센타일. 빈 마스크 페널티 = Dice 0, HD95 = 영상 대각선.
+- **랭킹 코드는 저장소에 없음**(문서상 프로즈만): 4그룹 각각 그룹랭킹 → **4그룹 평균 = 최종**. 정확한 동점처리/정규화 규칙은 "추후 공개".
+
+### 3.3 제출 인터페이스 (I/O contract)
+- 입력 `/input/images/pre-contrast-dce-mri-slice-breast/<uuid>.mha` → 출력 `/output/images/synthetic-contrast-dce-mri-slice-breast/output.mha`.
+- **float32 z-score `.mha`**, `output.CopyInformation(input)`로 spacing/origin/direction 보존 필수.
+- 입력은 **단일 2D 슬라이스** → 3D 모델 가정 제거. Docker `linux/amd64`, non-root, `/output` 쓰기가능, GPU 사용 가능(`CUDA_VISIBLE_DEVICES`/`MAMA_GPU_ID`).
+- **baseline 2종**: `identity-baseline`(pass-through, 인프라 점검용), `submission-gan`(medigan `00023` pix2pixHD; z-score↔uint8 PNG 브리징 포함, 가중치는 빌드시 외부 staging).
+
+### 3.4 의존성 (`requirements.txt` 요지)
+`SimpleITK>=2.2`, `scikit-learn>=1.2`, `scipy>=1.10`, `scikit-image>=0.20`, `pyradiomics`(AIM-Harvard git master — PyPI는 py≥3.10 깨짐), `frd-score>=1.0`, `torchmetrics>=1.0`, `torch<2.10`, `nnunetv2>=2.4`, `xgboost<2.0`. **`lpips` 패키지·monai 없음.**
+
+### 3.5 로컬 평가 셋업 — 반드시 인지할 제약
+- **학습된 가중치 일체 미포함**: 분류기 `.pkl/.pt`, nnU-Net `checkpoint_final.pth`, pix2pixHD 가중치 모두 저장소엔 `.gitkeep`만. → **공식 ③④ 메트릭을 로컬에서 그대로 재현 불가.**
+- **ground_truth 데이터도 미포함.** → 로컬 검증은 **자체 hold-out + 자체 proxy 분할/분류기**로 구성해야 함(아래 §4.6).
+- **GC 환경에서만** 공식 분류기/nnU-Net으로 ③④가 채점됨.
+
+---
+
+## 4. 접근법 제안 (단일 RTX A4500 20GB 한도)
+
+### 4.1 설계 원칙 (문헌·평가구조에서 도출)
+1. **Subtraction 타깃**: 모델은 `Δ = post − pre`를 예측, 추론 시 `post_hat = pre + Δ_hat`. 정적 해부 제거 → ②③④ 동시 이득(가장 재현성 높은 "공짜 점심").
+2. **Tumor-aware 지도**: ROI 가중 L1/perceptual + (가능 시) 종양마스크 조건화(SPADE/ControlNet). 학습엔 MAMA-MIA 종양 분할이 있으므로 활용. *단, 테스트 입력엔 마스크가 없음* → mask-conditioning은 "마스크 없이도 동작"하도록 설계하거나, 자체 coarse localizer로 생성.
+3. **Full-breast 학습**: 양측 함께(대칭성).
+4. **Perception–distortion 균형**: MSE만 좇지 말 것. 적대/지각 loss를 섞되, diffusion이면 few-step/regression-style 샘플링으로 균형.
+5. **도메인 강건성**: 학습셋(미국 다기관)과 테스트(3T Siemens / 1.5T GE) 분포차 → 강한 intensity/contrast augmentation, 정규화 정합.
+6. **FRD로 모델선택**: 로컬에 `frd-score` 설치, 종양패치 FRD + LPIPS + ROI-SSIM으로 체크포인트 선택(MSE 단독 금지).
+
+### 4.2 단계적 로드맵
+**Phase 0 — 인프라 검증 (1~2일)**
+- identity-baseline로 GC 제출 end-to-end 확인 → 리더보드 하한 확보.
+- `submission-gan`(pix2pixHD `00023`) 빌드/로컬 추론 성공 → 정규화 브리징 이해.
+- 검증: Docker 빌드 성공 + `output.mha` float32·동일 dims·메타데이터 보존.
+
+**Phase 1 — pix2pixHD baseline 개선 (저위험 메인, 1~2주)**
+- baseline에 ① **subtraction 타깃** ② **ROI 가중 + feature-matching + LPIPS-style perceptual loss** ③ **TSGAN식 종양 판별자/분할 분기**(curriculum) 추가.
+- MAMA-MIA로 자체 재학습(Duke 대신/추가). 512² 또는 416²(테스트 해상도 정합 고려).
+- 검증: 자체 hold-out에서 LPIPS↓·ROI-SSIM↑·FRD↓ 동시 개선 → validation 1회 제출.
+
+**Phase 2 — Latent Diffusion (고성능 도전, 2~3주, 시간 허용 시)**
+- **CC-Net 방식**: SD2.1 AE 동결 + ControlNet(pre-contrast 조건) + (subtraction 타깃). latent scale s≈0.1, grad value clip, batch≤8.
+- few-step/regression-style 샘플링(YODA/ExpA)으로 MSE 회복.
+- 검증: Phase1 대비 FRD/AUROC proxy 향상하면서 MSE 큰 손실 없는지.
+
+**Phase 3 — 앙상블/선택 (선택)**
+- 메트릭 그룹별 강점이 다르면(예: TeNCA=image-level, diffusion=FRD) **그룹별 최적 모델 분석 후 단일 제출 모델 선정**. 추론속도 무관하므로 무거운 모델도 OK.
+
+### 4.3 아키텍처 옵션 비교 (20GB 관점)
+| 옵션 | 메모리 | 추론속도 | 강점 메트릭 | 위험 | 권고 |
+|---|---|---|---|---|---|
+| **pix2pixHD+ROI+SUB** | 여유(512² 가능) | 빠름 | MSE·LPIPS, ROI↑ | mode collapse | **1순위(메인)** |
+| **Latent Diffusion(SD AE+ControlNet)** | 적합(latent, batch≤8) | 느림(무관) | FRD·AUROC·realism | 학습 까다로움, hallucination | **2순위(상향)** |
+| **TeNCA(temporal NCA)** | 매우 여유 | 빠름 | image-level(LPIPS/SSIM/PSNR) | 분포메트릭 약함 | 보조/실험 |
+| 픽셀공간 full-res DDPM | **20GB 초과 위험** | 매우 느림 | - | 메모리/시간 | **회피** |
+| SynDiff(adversarial diffusion) | 중간 | 중간 | 다중대비 | 구현복잡 | 여력 시 |
+
+### 4.4 20GB 실현가능성 메모
+- **pix2pixHD 512²**: 단일 A4500에서 batch 1~4로 학습 가능(generator+multi-scale D). 충분.
+- **Latent Diffusion**: AE 동결 시 학습 대상은 UNet+ControlNet. latent(예: 64²×4)에서 batch 8까지 가능. **이것이 20GB에서 diffusion을 쓰는 유일하게 현실적인 길.**
+- **혼합정밀(AMP)·gradient checkpointing·grad accumulation** 적극 사용.
+- 입력이 2D 단일슬라이스라 3D 부담 없음 → 메모리 매우 유리.
+
+### 4.5 Loss 설계 (Phase 1 기준 예시)
+```
+L = λ_pix · L1(Δ_hat, Δ_gt)                      # 픽셀 충실도(MSE 그룹)
+  + λ_roi · L1_in_tumorROI(Δ_hat, Δ_gt)          # ROI 가중(②④ 강화)
+  + λ_perc · LPIPS(post_hat, post_gt)             # 지각(LPIPS 그룹)
+  + λ_fm  · FeatureMatching(D)                    # 블러 완화(pix2pixHD)
+  + λ_adv · Adversarial(global D + tumor D)       # 선명/사실성(TSGAN)
+  + λ_seg · Dice/BCE(분할분기, post_hat)          # ④ 다운스트림 정렬
+```
+- λ는 **로컬 proxy 메트릭(특히 FRD·ROI-SSIM)** 기준으로 튜닝. MSE만 보고 키우지 말 것.
+
+### 4.6 로컬 검증 전략 (공식 가중치 부재 대응)
+- **자체 hold-out**: MAMA-MIA를 train/val로 분할(센터 단위 분할로 도메인시프트 모사 권장).
+- **메트릭**: MSE·LPIPS(torchmetrics alex, ±5σ 클립)·SSIM-tumor(skimage, data_range=10, win7)·**FRD(frd-score v1, 종양마스크)**를 **공식 구현 그대로** 재현(코드가 공개되어 있으니 그대로 import).
+- **③④ proxy**: 종양 ROI radiomics + XGBoost로 pre-vs-post / tumor-vs-미러ROI AUROC 자체 학습; 자체 nnU-Net(또는 MAMA-MIA 학습 분할기)으로 Dice/HD95 proxy. **절대값은 GC와 다르지만 상대비교/체크포인트 선택엔 충분.**
+- **모델선택**: 4그룹 proxy를 **랭크-평균**으로 합쳐(공식 랭킹 모사) 단일 점수로 체크포인트 선택.
+
+### 4.7 리스크 & 함정 체크리스트
+- [ ] 출력 스케일을 **z-score float32**로 정확히 맞춤(역정규화 누락 시 MSE 폭망).
+- [ ] `CopyInformation` 호출(메타데이터) — 누락 시 평가 오류.
+- [ ] 90° 회전 규약 일치(전처리가 rot90 적용 → 학습/추론 일관).
+- [ ] mask-conditioning 모델은 **테스트엔 마스크 없음** → 마스크-free 추론경로 필수.
+- [ ] FID 대신 **FRD**로 검증(FID 신뢰 금지).
+- [ ] validation 제출 **5회 제한** → 로컬에서 충분히 검증 후 제출.
+- [ ] 외부 데이터는 **공개+문서화**만(private/NIH CADR 금지).
+- [ ] Docker `linux/amd64`·non-root·`/output` 쓰기권한.
+- [ ] 도메인시프트(3T Siemens / 1.5T GE) 대비 augmentation/정규화 강건화.
+
+---
+
+## 5. 권장 실행 계획 (현 일정 기준)
+
+| 시점 | 작업 | 검증 게이트 |
+|---|---|---|
+| 즉시(~6/1) | identity-baseline GC 제출, pix2pixHD baseline 로컬 재현, 로컬 평가 파이프라인(공식 메트릭 import + proxy ③④) 구축 | 리더보드 하한 확보 + 로컬 메트릭 재현 |
+| ~6/15 | **Phase 1**: SUB 타깃 + ROI/FM/perceptual + 종양 D 개선 pix2pixHD 재학습(MAMA-MIA, full-breast) | hold-out에서 LPIPS↓·ROI-SSIM↑·FRD↓ → validation 1회 |
+| ~6/25 | (여력 시) **Phase 2**: latent diffusion(SD AE+ControlNet, SUB), few-step 샘플링 | proxy FRD/AUROC↑, MSE 손실 제한 |
+| 6/25~7/10 | Test phase: 최적 단일모델 선정·제출, 도메인 강건성 점검 | 4그룹 proxy 랭크-평균 최상 모델 |
+| ~9/27 | Deep-Breath 워크숍 논문(Best Paper €300 대상) | - |
+
+---
+
+## 참고문헌
+
+- **MAMA-SYNTH Challenge** — https://www.ub.edu/mama-synth/mama-synth · https://mamasynth.grand-challenge.org/ · proposal Zenodo:19852228 · code https://github.com/mama-research/mama-synth
+- **MAMA-MIA dataset** — Garrucho et al., *Scientific Data* 12:453 (2025); arXiv:2406.13844
+- **pix2pixHD pre→post (baseline)** — Osuala et al., SPIE MI 2024; arXiv:2311.10879; code https://github.com/RichardObi/pre_post_synthesis
+- **CC-Net (multi-condition LDM)** — Osuala et al., MICCAI 2024; arXiv:2403.13890; code https://github.com/RichardObi/ccnet
+- **Comparing conditional diffusion (MAMA-MIA)** — Ibarra/Osuala et al., Deep-Breath 2025; arXiv:2508.13776
+- **TeNCA (temporal NCA)** — Lang/Osuala et al., 2025; arXiv:2506.18720
+- **TSGAN (tumor-attentive)** — Han et al., IEEE Access 2022; PMC9721354
+- **Müller-Franzes/Truhn, simulate CE breast MRI** — *Radiology* 2023; doi radiol.213199
+- **Fonnegra late-stage CE** — 2024; arXiv:2409.01596
+- **Gong reduced gadolinium dose** — *JMRI* 48(2):330 (2018)
+- **Pinetz conditional dose reduction** — 2024; arXiv:2403.03539
+- **pix2pix / pix2pixHD** — Isola CVPR'17 / Wang CVPR'18 · **SPADE** Park'19 · **MedGAN** 2018 arXiv:1806.06397
+- **Palette** SIGGRAPH'22 · **BBDM** CVPR'23 arXiv:2205.07680 (의료 결정론 arXiv:2503.22531) · **SynDiff** TMI'23 arXiv:2207.08208 · **LDM** Rombach CVPR'22 · **MedLoRD** 2025 arXiv:2503.13211
+- **FRD metric** — Konz/Osuala et al., 2024; arXiv:2412.01496; code https://github.com/RichardObi/frd-score
+- **Perception–distortion** — Blau & Michaeli, CVPR 2018 · **YODA "Regression is all you need"** — 2025 arXiv:2505.02048
+- **SynthRAD2023** — Huijben et al., *Medical Image Analysis* 97:103276 (2024); arXiv:2403.08447
+- **medigan** — Osuala et al., *J. Medical Imaging* 2023; arXiv:2209.14472

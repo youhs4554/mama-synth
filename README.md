@@ -106,11 +106,11 @@ Score synthetic predictions against ground truth.
 
 **💻 Local evaluation**
 
-**Step 1: Add evaluation models**:
+**Step 1: Check evaluation models**:
 
-The pretrained classification and segmentation models must be placed in `src/evaluation/models/` to run the complete evaluation. **[Download Weights](https://drive.google.com/file/d/1rliFnr-mNtISkJA0etm1dDBLdbHB3d4h/view) ⬇️**
+The pretrained classification and segmentation models live in `src/evaluation/models/` and are managed with Git LFS. If this directory is absent or incomplete in a fresh checkout, run `git lfs pull` or use the original **[Download Weights](https://drive.google.com/file/d/1rliFnr-mNtISkJA0etm1dDBLdbHB3d4h/view)** package.
 
-Expected structure after download:
+Expected structure:
 
 ```
 src/evaluation/models/

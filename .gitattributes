@@ -1,0 +1,2 @@
+src/evaluation/models/**/*.pkl filter=lfs diff=lfs merge=lfs -text
+src/evaluation/models/**/*.pth filter=lfs diff=lfs merge=lfs -text

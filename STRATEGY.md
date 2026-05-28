@@ -12,6 +12,7 @@
 
 `STRATEGY.md`만 보고도 다음 작업을 진행할 수 있도록, 세부 근거는 아래 로컬 문서를 기준으로 확인한다.
 
+- **운영 입구**: `README.md`는 저장소 구조, quick start, preprocessing, local evaluation, `src/evaluation/models/` 평가 가중치 위치, submission baseline 실행법을 짧게 묶은 실무용 entry point다.
 - **챌린지 핵심**: `docs/gc_mamasynth_introduction.md`, `docs/gc_mamasynth_data.md`, `docs/gc_mamasynth_metrics.md`, `docs/gc_mamasynth_timeline.md`, `docs/gc_mamasynth_submissions.md`.
 - **제출/운영**: `docs/mama_synth_custom_model_submission_guide.md`, `docs/mama_synth_identity_baseline_readme.md`, `docs/mama_synth_gan_submission_readme.md`, `docs/gc_doc_building_and_testing_the_container.md`, `docs/gc_doc_runtime_environment.md`, `docs/gc_doc_making_a_challenge_submission.md`, `docs/gc_doc_try_out_your_algorithm.md`, `docs/gc_doc_try_out_your_algorithm_and_publish_a_test_case.md`, `docs/gc_doc_upload_the_model_weights_separately.md`.
 - **GC 설정**: `docs/gc_doc_create_an_algorithm_page.md`, `docs/gc_doc_choose_input_and_output_interfaces.md`, `docs/gc_doc_add_the_algorithm.md`, `docs/gc_doc_exporting_the_container.md`, `docs/gc_doc_linking_a_github_repository_to_your_algorithm.md`.
@@ -56,7 +57,7 @@ MAMA-SYNTH 작업은 "용어 정렬 → 요구사항 문서화 → 실행 가능
   3. **Full-breast 학습**: 양측 유방을 함께 학습(대칭성 단서) → single-breast보다 우수.
 - **20GB GPU 현실 권고**: 로컬 학습/실험 기준은 RTX A4500 20GB다. ① 1순위 = **pix2pixHD baseline 개선(+feature-matching+ROI loss+subtraction)** — 저위험·고성능. ② 2순위 = **Latent Diffusion(SD AE 동결 + ControlNet pre-contrast 조건화, CC-Net 방식)** — latent 공간이라 20GB에 들어감, FRD/AUROC 강점. **픽셀공간 full-res DDPM은 피할 것.** 제출 추론은 GC T4 16GB/A10G 24GB에서 OOM 없이 돌아야 한다.
 - **검증은 FID가 아니라 FRD로**: FID는 구조를 망가뜨린 모델을 "최고"로 오인할 수 있음(주최자 FRD 논문이 명시).
-- 평가용 분류기/분할(nnU-Net) **가중치는 저장소에 미포함** → 로컬에서 공식 metric 100% 재현은 일부 불가. proxy 검증 파이프라인을 직접 구축해야 함.
+- 평가용 분류기/분할(nnU-Net) 가중치는 `src/evaluation/models/`에 두고 **Git LFS로 관리**한다. 원본 MRI, 생성 출력, 실험 checkpoint와 구분해서 취급한다.
 
 ---
 
@@ -223,9 +224,9 @@ DCE-MRI는 유방암 진단·치료계획·모니터링에 핵심이지만, gado
 `SimpleITK>=2.2`, `scikit-learn>=1.2`, `scipy>=1.10`, `scikit-image>=0.20`, `pyradiomics`(AIM-Harvard git master — PyPI는 py≥3.10 깨짐), `frd-score>=1.0`, `torchmetrics>=1.0`, `torch<2.10`, `nnunetv2>=2.4`, `xgboost<2.0`. **`lpips` 패키지·monai 없음.**
 
 ### 3.5 로컬 평가 셋업 — 반드시 인지할 제약
-- **학습된 가중치 일체 미포함**: 분류기 `.pkl/.pt`, nnU-Net `checkpoint_final.pth`, pix2pixHD 가중치 모두 저장소엔 `.gitkeep`만. → **공식 ③④ 메트릭을 로컬에서 그대로 재현 불가.**
-- **ground_truth 데이터도 미포함.** → 로컬 검증은 **자체 hold-out + 자체 proxy 분할/분류기**로 구성해야 함(아래 §4.6).
-- **GC 환경에서만** 공식 분류기/nnU-Net으로 ③④가 채점됨.
+- **평가용 가중치 위치**: 분류기 `.pkl`과 nnU-Net `checkpoint_*.pth`는 README의 구조처럼 `src/evaluation/models/`에 둔다. 이 디렉터리의 대형 가중치 파일은 Git LFS로 관리한다.
+- **ground_truth 데이터는 미포함.** 원본 MRI, mask, processed `.mha`, predictions는 repo 밖 또는 `datasets` symlink 아래에 둔다.
+- **GC 공식 채점**은 숨겨진 데이터와 플랫폼 설정으로 실행된다. 로컬 평가는 같은 evaluator 구현과 bundled evaluation models로 최대한 재현하되, 최종 순위와 완전히 동일한 환경이라고 가정하지 않는다.
 
 ### 3.6 로컬 데이터셋 경로 운영
 원본 MRI 데이터셋은 저장소 안에 두지 않는다. 실제 데이터 루트는 사용자가 로컬 디스크/외장 SSD/서버 마운트 상황에 맞춰 나중에 결정하고, 이 저장소에는 `datasets` 심볼릭 링크만 둔다.
@@ -276,7 +277,8 @@ python src/preprocessing/preprocess.py \
 
 운영 규칙:
 - `datasets` symlink 자체는 개인 머신 의존 경로이므로 커밋하지 않는다.
-- 원본 MRI, mask, processed `.mha`, predictions, model weights, evaluation model은 모두 `datasets/` 아래 또는 repo 밖에 둔다.
+- 원본 MRI, mask, processed `.mha`, predictions, 실험 checkpoint는 모두 `datasets/` 아래 또는 repo 밖에 둔다.
+- 평가 재현에 필요한 `src/evaluation/models/`의 `.pkl`/`.pth` 파일은 예외적으로 Git LFS로 관리한다.
 - Docker build context에 `datasets`가 포함되지 않게 `.dockerignore`가 생기면 반드시 `datasets`를 추가한다.
 - 코드에서 경로를 기록할 때는 가능하면 `Path(...).resolve()`로 실제 데이터 루트를 함께 로그에 남긴다.
 
@@ -371,10 +373,10 @@ L = λ_pix · L1(Δ_hat, Δ_gt)                      # 픽셀 충실도(MSE 그�
 ```
 - λ는 **로컬 proxy 메트릭(특히 FRD·ROI-SSIM)** 기준으로 튜닝. MSE만 보고 키우지 말 것.
 
-### 4.6 로컬 검증 전략 (공식 가중치 부재 대응)
+### 4.6 로컬 검증 전략
 - **자체 hold-out**: MAMA-MIA를 train/val로 분할(센터 단위 분할로 도메인시프트 모사 권장).
 - **메트릭**: MSE·LPIPS(torchmetrics alex, ±5σ 클립)·SSIM-tumor(skimage, data_range=10, win7)·**FRD(frd-score v1, 종양마스크)**를 **공식 구현 그대로** 재현한다. 엔트리포인트는 `src/evaluation/evaluate.py`, 구현은 `src/evaluation/evaluators/{image_metrics,roi_metrics,classification,segmentation}.py`, 경로 설정은 `MAMA_PREDICTIONS_DIR`, `MAMA_GT_DIR`, `MAMA_MASKS_DIR`, `MAMA_MODELS_DIR`, `MAMA_OUTPUT_DIR`를 사용한다.
-- **③④ proxy**: 종양 ROI radiomics + XGBoost로 pre-vs-post / tumor-vs-미러ROI AUROC 자체 학습; 자체 nnU-Net(또는 MAMA-MIA 학습 분할기)으로 Dice/HD95 proxy. **절대값은 GC와 다르지만 상대비교/체크포인트 선택엔 충분.**
+- **③④ 재현/보조 proxy**: `src/evaluation/models/`의 bundled evaluation models로 분류/분할 evaluator를 실행한다. 필요하면 별도 hold-out용 proxy 분류기/분할기를 추가로 학습하되, 해당 실험 checkpoint는 Git LFS 예외가 아니므로 repo에 커밋하지 않는다.
 - **모델선택**: 4그룹 proxy를 **랭크-평균**으로 합쳐(공식 랭킹 모사) 단일 점수로 체크포인트 선택.
 
 ### 4.7 실험 진행 모니터링 (Experiment Tracking)
@@ -389,7 +391,7 @@ experiments/
   reports/                # metric summary csv/json, plots
   runs/<run_id>/           # checkpoints, predictions, debug figures
 ```
-`experiments/`, `checkpoints/`, `predictions/`, `outputs/`, Docker tarball, model weights는 git에 커밋하지 않는다. 최종 논문/PR에는 원본 산출물 대신 aggregate metric table, sanitized plot, 실행 config checksum만 남긴다.
+`experiments/`, `checkpoints/`, `predictions/`, `outputs/`, Docker tarball, 실험 model weights는 git에 커밋하지 않는다. `src/evaluation/models/`의 평가용 `.pkl`/`.pth` 파일만 Git LFS 예외다. 최종 논문/PR에는 원본 산출물 대신 aggregate metric table, sanitized plot, 실행 config checksum만 남긴다.
 
 **run_id 규칙**
 `YYYYMMDD-HHMM_<model>_<target>_<split>_<shortgit>` 형식을 쓴다.

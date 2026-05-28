@@ -1,5 +1,9 @@
 # Defaults mama-synth
 datasets
+src/evaluation/models/segmentation/fold_*/validation/
+src/evaluation/models/segmentation/fold_*/debug.json
+src/evaluation/models/segmentation/fold_*/progress.png
+src/evaluation/models/segmentation/fold_*/training_log_*.txt
 *.tar.gz
 *.DS_Store
 *.pt

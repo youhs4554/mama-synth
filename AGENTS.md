@@ -8,6 +8,10 @@ This repository supports the MAMA-SYNTH breast MRI synthesis challenge. Core Pyt
 
 Before changing model design, preprocessing assumptions, or evaluation strategy, read `STRATEGY.md`. It summarizes the MAMA-SYNTH task, metric tradeoffs, baseline constraints, and recommended development roadmap.
 
+## README Reference
+
+Use `README.md` as the concise operational entry point for this repository. It describes the repository layout, quick-start commands, preprocessing flow, local evaluation setup, bundled evaluation model location, and submission baseline usage. When updating contributor guidance or strategy notes, keep them consistent with the README rather than duplicating long command walkthroughs.
+
 ## Domain Context & Grill-With-Docs Workflow
 
 When a change involves fuzzy domain language, model-selection terminology, evaluation strategy, dataset boundaries, or submission policy, use a grill-with-docs workflow before implementation. This follows the AI Hero guidance for codebases: align the language used by the codebase, developers, and domain experts before building.
@@ -82,4 +86,4 @@ Recent history uses short imperative or descriptive commit messages, such as `Ad
 
 ## Security & Configuration Tips
 
-Do not commit protected MRI data, generated challenge outputs, Docker archives, or downloaded model weights. Configure local runs through environment variables such as `MAMA_PREDICTIONS_DIR`, `MAMA_GT_DIR`, `MAMA_MASKS_DIR`, `MAMA_MODELS_DIR`, and `MAMA_OUTPUT_DIR`.
+Do not commit protected MRI data, generated challenge outputs, Docker archives, or experiment/training weights. The evaluation model files under `src/evaluation/models/` are the explicit exception and must be managed with Git LFS. Configure local runs through environment variables such as `MAMA_PREDICTIONS_DIR`, `MAMA_GT_DIR`, `MAMA_MASKS_DIR`, `MAMA_MODELS_DIR`, and `MAMA_OUTPUT_DIR`.

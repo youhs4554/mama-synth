@@ -88,6 +88,8 @@ Do not upload protected MRI slices, masks, generated challenge outputs, or model
 
 Every final response that leaves the user with a decision, handoff, completed task, blocked task, or waiting state must end with a clearly labeled `Suggested next step:` line. Do not omit this line just because the change is small. Keep it concise and practical: one recommended action, plus up to two alternatives only when useful. For long-running workflows such as `/goal`, include the next concrete workflow step and any required input or validation command. If blocked, state the smallest unblock action instead.
 
+After completing a pi goal, explain the completion result in Korean. Include the completed objective, major changed files or artifacts, validation commands/results, remaining blockers or non-promotion decisions, and the recommended next step.
+
 ## Commit & Pull Request Guidelines
 
 Recent history uses short imperative or descriptive commit messages, such as `Add submission documentation` and `Further updates during testing and debugging...`. Keep each commit scoped to one concern. Pull requests should describe the affected pipeline area, list validation commands run, note any required external data or model weights, and include metric excerpts or screenshots when outputs or documentation change.

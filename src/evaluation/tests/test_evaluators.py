@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 import pickle
+import sys
+import types
 from pathlib import Path
 
 import numpy as np
@@ -163,6 +165,28 @@ class TestSegmentation:
 
 
 class TestClassification:
+    def test_repairs_older_xgboost_pickles(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from evaluators.classification import _repair_xgboost_sklearn_compat
+
+        class XGBClassifier:
+            __module__ = "xgboost.sklearn"
+
+            def get_params(self, deep: bool = False) -> dict[str, object]:
+                del deep
+                return {"use_label_encoder": False, "gpu_id": None}
+
+        fake_xgboost = types.ModuleType("xgboost")
+        fake_xgboost.XGBClassifier = XGBClassifier  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, "xgboost", fake_xgboost)
+        clf = XGBClassifier()
+
+        _repair_xgboost_sklearn_compat(clf)
+
+        assert clf.use_label_encoder is False
+        assert clf.gpu_id is None
+
     def test_no_models_returns_empty(self) -> None:
         cases = [_make_case()]
         ev = ClassificationEvaluator(

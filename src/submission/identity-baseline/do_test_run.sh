@@ -21,9 +21,17 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &>/dev/null && pwd )
 # Rebuild the image before each test run
 bash "$SCRIPT_DIR/do_build.sh"
 
-# Clean previous output
-rm -rf "$SCRIPT_DIR/test/output"
+# Clean previous output. Previous local runs may have created files owned by
+# the container user, so fall back to a root cleanup inside the built image.
+if [ -d "$SCRIPT_DIR/test/output" ]; then
+    rm -rf "$SCRIPT_DIR/test/output" 2>/dev/null || \
+        docker run --rm --entrypoint sh \
+            -v "$SCRIPT_DIR/test/output:/cleanup" \
+            mama-synth-identity-baseline \
+            -c 'rm -rf /cleanup/*'
+fi
 mkdir -p "$SCRIPT_DIR/test/output"
+chmod 0777 "$SCRIPT_DIR/test/output"
 
 # Verify that a test input file exists
 INPUT_DIR="$SCRIPT_DIR/test/input/images/pre-contrast-dce-mri-slice-breast"
@@ -38,6 +46,7 @@ fi
 docker run --rm \
     --network=none \
     --memory=4g \
+    --user "$(id -u):$(id -g)" \
     -v "$SCRIPT_DIR/test/input:/input:ro" \
     -v "$SCRIPT_DIR/test/output:/output" \
     mama-synth-identity-baseline

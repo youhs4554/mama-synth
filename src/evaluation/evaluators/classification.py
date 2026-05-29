@@ -51,6 +51,29 @@ class Classifier(Protocol):
 # ======================================================================
 
 
+def _repair_xgboost_sklearn_compat(model: Any) -> None:
+    """Patch older pickled XGBoost sklearn estimators for current xgboost."""
+    try:
+        from xgboost import XGBClassifier
+    except Exception:
+        return
+
+    defaults = XGBClassifier().get_params(deep=False)
+
+    def visit(obj: Any) -> None:
+        if (
+            obj.__class__.__module__.startswith("xgboost.")
+            and obj.__class__.__name__ == "XGBClassifier"
+        ):
+            for name, value in defaults.items():
+                if not hasattr(obj, name):
+                    setattr(obj, name, value)
+        for _, step in getattr(obj, "steps", []):
+            visit(step)
+
+    visit(model)
+
+
 class RadiomicsClassifier:
     """Scikit-learn classifier operating on radiomic features.
 
@@ -77,6 +100,7 @@ class RadiomicsClassifier:
             self.model = model
         else:
             self.model = self._create_default_model()
+        _repair_xgboost_sklearn_compat(self.model)
 
     @staticmethod
     def _create_default_model() -> Any:

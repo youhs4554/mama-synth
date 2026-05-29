@@ -1,0 +1,67 @@
+run:
+  name: phase1b-unet-residual-scanner-protocol-intensity-v1
+  seed: 7
+  output_dir: experiments/phase1b/unet_residual_scanner_protocol_intensity_v1
+
+data:
+  split_manifest: splits/phase1a_debug_holdout_real_v1.json
+
+model:
+  inference_inputs:
+    - pre_contrast
+  target: residual
+  base_channels: 4
+
+loss:
+  roi_weighting:
+    mode: tumor_mask_only
+    context:
+      enabled: false
+
+train:
+  max_epochs: 1
+  batch_size: 1
+
+augmentation:
+  enabled: true
+  seed: 17
+  intensity_scale_range:
+    - 0.95
+    - 1.05
+  intensity_shift_range:
+    - -0.05
+    - 0.05
+
+evaluation:
+  mode: fixed_downstream_evaluators
+  classifier_ensemble: true
+  segmentation_fold: 0
+
+submission:
+  output: synthetic_post
+
+ablation:
+  model_family: unet_residual_regressor
+  loss_terms:
+    - residual_l1
+    - tumor_roi_weighted_residual_l1
+  augmentation_policy: scanner_protocol_intensity
+  selection_stage: early
+
+run_metadata:
+  config: configs/phase1b/unet_residual_scanner_protocol_intensity_v1.yaml
+  split: splits/phase1a_debug_holdout_real_v1.json
+  model_variant: unet_residual_regressor
+  loss_weights:
+    tumor: 3.0
+  augmentation_settings:
+    enabled: true
+    seed: 17
+    intensity_scale_range:
+      - 0.95
+      - 1.05
+    intensity_shift_range:
+      - -0.05
+      - 0.05
+  checkpoint_hash: pending-smoke-run
+  metric_summary: {}

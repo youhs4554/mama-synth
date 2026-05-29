@@ -133,3 +133,209 @@
 - [x] Review Claude's changes and verify repository docs still match the real-data debug workflow.
 - [x] Run focused validation after documentation/config updates.
 - [x] Commit the resulting changes.
+
+## Active task: Write PRDs for all STRATEGY phases
+
+- [x] Confirm existing Phase 1A PRD and closed implementation issues.
+- [x] Write missing Phase 0, Phase 1B, Phase 2, and Phase 3 PRDs.
+- [x] Publish missing phase PRDs to the issue tracker with `ready-for-agent`.
+- [x] Run lightweight validation and summarize created artifacts.
+
+## Active goal: PRD-to-issues and TDD implementation
+
+- [x] Read `/skill:to-issues` and `/skill:tdd` workflow requirements.
+- [x] Review `docs/prd/` phase PRDs and current GitHub issue state.
+- [x] Confirm Phase 1A tracer-bullet issues are already published and closed.
+- [x] Get user approval on the Phase 0/1B/2/3 issue breakdown before publishing implementation issues.
+- [x] Publish approved implementation issues in dependency order (`#15`-`#37`).
+- [x] Issue #15 / P0-1: Audit local test, dataset, hardware, and preprocessing assumptions.
+  - [x] RED: audit artifact records test command/result, dataset layout, preprocessing stats, and GPU assumptions.
+  - [x] GREEN: minimal Phase 0 audit public interface passes tracer test.
+  - [x] Add missing-path and protected-data-safe dataset summary tests.
+  - [x] Run targeted Issue #15 tests: `PYTHONPATH=src uv run pytest src/phase0/tests/test_infrastructure_audit.py -q`.
+  - [x] Run Phase 0 validation audit check: `PYTHONPATH=src:src/evaluation uv run pytest src/phase0/tests src/evaluation/tests src/preprocessing/test_preprocess.py -q`.
+  - [x] Write local ignored audit artifact: `experiments/phase0/infrastructure_audit.json`.
+- [x] Issue #16 / P0-2: Generate challenge-like debug MHA artifacts and split manifest.
+  - [x] RED: debug artifact manifest verifies pre/post/mask MHA paths and metadata expectations.
+  - [x] GREEN: minimal Phase 0 debug artifact public interface passes tracer test.
+  - [x] Add center/source metadata and local-only mask usage tests.
+  - [x] Run targeted Issue #16 tests: `PYTHONPATH=src uv run pytest src/phase0/tests/test_debug_artifacts.py -q`.
+  - [x] Write local ignored audit artifact: `experiments/phase0/debug_artifacts_audit.json`.
+- [x] Issue #17 / P0-3: Record identity lower-bound and stable metric output contract.
+  - [x] RED: metric contract records identity as lower-bound only and fixed evaluator checks.
+  - [x] GREEN: minimal Phase 0 metric contract public interface passes tracer test.
+  - [x] Add stable JSON/CSV summary tests.
+  - [x] Run targeted Issue #17 tests: `PYTHONPATH=src uv run pytest src/phase0/tests/test_metric_contract.py -q`.
+  - [x] Run Phase 0 validation slice: `PYTHONPATH=src:src/evaluation uv run pytest src/phase0/tests src/phase1a/tests/test_baseline_evidence.py src/evaluation/tests src/preprocessing/test_preprocess.py -q`.
+  - [x] Write local ignored metric contract artifacts: `experiments/phase0/metric_contract.json` and `experiments/phase0/metric_contract.csv`.
+- [x] Issue #18 / P0-4: Reproduce reference GAN baseline or mark it unreproducible.
+  - [x] RED: reference GAN baseline evidence requires reproducible run fields or explicit unreproducible blocker.
+  - [x] GREEN: minimal Phase 0 reference GAN evidence public interface passes tracer test.
+  - [x] Add command/path/model artifact evidence tests.
+  - [x] Run targeted Issue #18 tests: `PYTHONPATH=src uv run pytest src/phase0/tests/test_reference_gan_evidence.py -q`.
+  - [x] Attempt reference GAN build: `cd src/submission/submission-gan && ./do_build.sh` -> failed because `30_net_G.pth` is missing and `MODEL_WEIGHTS_DIR` is unset.
+  - [x] Write local ignored unreproducible evidence artifact: `experiments/phase0/reference_gan_evidence.json`.
+- [x] Issue #19 / P0-5: Smoke-test identity submission container and output validation.
+  - [x] RED: identity smoke evidence validates command result and output contract.
+  - [x] GREEN: minimal Phase 0 submission smoke public interface passes tracer test.
+  - [x] Add Docker-assumption and failure evidence tests.
+  - [x] Fix local identity `do_test_run.sh` writable-output cleanup for non-root container runs.
+  - [x] Run targeted Issue #19 tests: `PYTHONPATH=src uv run pytest src/phase0/tests/test_submission_smoke.py -q`.
+  - [x] Run container validation: `cd src/submission/identity-baseline && ./do_test_run.sh`.
+  - [x] Run export validation: `cd src/submission/identity-baseline && ./do_save.sh`.
+  - [x] Run submission validation slice: `PYTHONPATH=src:src/evaluation uv run pytest src/phase0/tests src/submission/identity-baseline/test_algorithm.py -q`.
+  - [x] Write local ignored smoke artifact: `experiments/phase0/identity_submission_smoke.json`.
+- [x] Issue #20 / P0-6: Publish Phase 0 audit bundle and weight-staging decision.
+  - [x] RED: audit bundle links Phase 0 evidence and documents weight-staging strategy.
+  - [x] GREEN: minimal Phase 0 audit bundle public interface passes tracer test.
+  - [x] Add missing-evidence rejection tests.
+  - [x] Run targeted Issue #20 tests: `PYTHONPATH=src uv run pytest src/phase0/tests/test_audit_bundle.py -q`.
+  - [x] Run Phase 0 validation: `PYTHONPATH=src:src/evaluation uv run pytest src/phase0/tests src/evaluation/tests src/preprocessing/test_preprocess.py -q`.
+  - [x] Write local ignored audit bundle: `experiments/phase0/audit_bundle.json`.
+- [x] Issue #21 / P1B-1: Add Phase 1B ablation config and registry on Phase 1A contracts.
+  - [x] RED: Phase 1B config reuses Phase 1A contracts and rejects incompatible ablations.
+  - [x] GREEN: minimal Phase 1B config/registry public interface passes tracer test.
+  - [x] Add fixed evaluator drift and run metadata tests.
+  - [x] Add smoke config: `configs/phase1b/unet_residual_smoke_v1.yaml`.
+  - [x] Run targeted Issue #21 tests: `PYTHONPATH=src uv run pytest src/phase1b/tests/test_ablation_config.py -q`.
+  - [x] Run Phase 1B config validation slice: `PYTHONPATH=src:src/evaluation uv run pytest src/phase1b/tests src/phase1a/tests/test_experiment_config.py src/evaluation/tests src/preprocessing/test_preprocess.py -q`.
+- [x] Issue #22 / P1B-2: Implement 2D U-Net residual-regressor comparator.
+  - [x] RED: U-Net comparator predicts residual and preserves synthetic post/native-size inference contract.
+  - [x] GREEN: minimal 2D U-Net residual-regressor public interface passes tracer test.
+  - [x] Add pre-contrast-only and no-mask inference tests.
+  - [x] Strengthen after audit: replace constant/template predictor with a convolutional encoder/downsample/bottleneck/upsample decoder, skip concatenation, and trainable 1x1 residual head.
+  - [x] Add input-dependent learned residual test that fails the old constant predictor.
+  - [x] Add native-size inference after training test.
+  - [x] Run targeted Issue #22 tests: `PYTHONPATH=src uv run pytest src/phase1b/tests/test_unet_comparator.py -q` -> 6 passed.
+  - [x] Run Phase 1B comparator validation slice: `PYTHONPATH=src:src/evaluation uv run pytest src/phase1b/tests src/phase1a/tests/test_residual_inference.py src/evaluation/tests src/preprocessing/test_preprocess.py -q` -> 107 passed, 3 skipped.
+- [x] Issue #23 / P1B-3: Add seeded domain robustness augmentation ablation.
+  - [x] RED: augmentation is reproducible and preserves paired pre/post/mask alignment.
+  - [x] GREEN: minimal Phase 1B augmentation public interface passes tracer test.
+  - [x] Add disabled no-op test.
+  - [x] Run targeted Issue #23 tests: `PYTHONPATH=src uv run pytest src/phase1b/tests/test_domain_augmentation.py -q`.
+  - [x] Run Phase 1B augmentation validation slice: `PYTHONPATH=src:src/evaluation uv run pytest src/phase1b/tests src/phase1a/tests/test_residual_dataset.py src/evaluation/tests src/preprocessing/test_preprocess.py -q`.
+- [x] Issue #24 / P1B-4: Add isolated loss/model ablation groups.
+  - [x] RED: ablation plan rejects combined experiments without single-factor evidence.
+  - [x] GREEN: minimal isolated ablation planning public interface passes tracer test.
+  - [x] Add selected loss-term toy-array tests and predicted-mask exclusion test.
+  - [x] Run targeted Issue #24 tests: `PYTHONPATH=src uv run pytest src/phase1b/tests/test_isolated_ablation_groups.py -q`.
+  - [x] Run Phase 1B ablation-group validation slice: `PYTHONPATH=src:src/evaluation uv run pytest src/phase1b/tests src/phase1a/tests/test_losses.py src/evaluation/tests src/preprocessing/test_preprocess.py -q`.
+- [x] Issue #25 / P1B-5: Add ablation runner and audit metric summary interface.
+  - [x] RED: ablation runner returns stable staged metric/audit summary.
+  - [x] GREEN: minimal Phase 1B ablation runner public interface passes tracer test.
+  - [x] Add fixed evaluator, regression reporting, and Phase 1A promotion compatibility tests.
+  - [x] Run targeted Issue #25 tests: `PYTHONPATH=src uv run pytest src/phase1b/tests/test_ablation_runner.py -q`.
+  - [x] Run Phase 1B runner validation slice: `PYTHONPATH=src:src/evaluation uv run pytest src/phase1b/tests src/phase1a/tests/test_promotion_gate.py src/phase1a/tests/test_evaluation_runner.py src/evaluation/tests src/preprocessing/test_preprocess.py -q`.
+- [x] Issue #26 / P1B-6: Package only promoted Phase 1B checkpoint behind smoke tests.
+  - [x] RED: Phase 1B packaging rejects candidates without promotion evidence.
+  - [x] GREEN: minimal Phase 1B packaging gate public interface passes tracer test.
+  - [x] Add smoke-test and protected-artifact locality tests.
+  - [x] Run targeted Issue #26 tests: `PYTHONPATH=src uv run pytest src/phase1b/tests/test_packaging_gate.py -q`.
+  - [x] Run Phase 1B packaging validation slice: `PYTHONPATH=src:src/evaluation uv run pytest src/phase1b/tests src/phase1a/tests/test_submission_package.py src/phase1a/tests/test_promotion_gate.py src/evaluation/tests src/preprocessing/test_preprocess.py -q`.
+- [x] Issue #27 / P2-1: Make Phase 2 go/no-go decision from Phase 1 evidence.
+  - [x] RED: Phase 2 gate records go/no-go based on Phase 1 metric gap, time, and resources.
+  - [x] GREEN: minimal Phase 2 gate public interface passes tracer test.
+  - [x] Add no-go clean stop and failed/deferred audit tests.
+  - [x] Run targeted Issue #27 tests: `PYTHONPATH=src uv run pytest src/phase2/tests/test_go_no_go_gate.py -q`.
+  - [x] Write local ignored no-go gate artifact: `experiments/phase2/go_no_go_decision.json`.
+  - [x] Run Phase 2 gate validation slice: `PYTHONPATH=src:src/evaluation uv run pytest src/phase2/tests src/phase1b/tests src/evaluation/tests src/preprocessing/test_preprocess.py -q`.
+- [x] Issues #28-#32 / P2-2..P2-6: Deferred by Phase 2 no-go gate.
+  - [x] Close downstream latent-diffusion implementation issues as not planned because `experiments/phase2/go_no_go_decision.json` records `decision=no-go`.
+  - [x] Do not start speculative autoencoder, denoising, sampling, or Phase 2 packaging work without a future go decision.
+- [x] Issue #33 / P3-1: Validate final candidate audit bundles.
+  - [x] RED: final candidate audit validation rejects missing required artifacts.
+  - [x] GREEN: minimal Phase 3 candidate audit validation public interface passes tracer test.
+  - [x] Add protected-data exclusion tests.
+  - [x] Run targeted Issue #33 tests: `PYTHONPATH=src uv run pytest src/phase3/tests/test_candidate_audit.py -q`.
+  - [x] Run Phase 3 audit validation slice: `PYTHONPATH=src:src/evaluation uv run pytest src/phase3/tests src/phase1b/tests/test_packaging_gate.py src/evaluation/tests src/preprocessing/test_preprocess.py -q`.
+- [x] Issue #34 / P3-2: Select final candidate from frozen local ranking table.
+  - [x] RED: final selection handles rank mean, non-inferiority, ties, and no-candidate state.
+  - [x] GREEN: minimal Phase 3 final selection public interface passes tracer test.
+  - [x] Add validation-feedback separation tests.
+  - [x] Run targeted Issue #34 tests: `PYTHONPATH=src uv run pytest src/phase3/tests/test_final_selection.py -q`.
+  - [x] Write local ignored no-candidate final-selection artifact: `experiments/phase3/final_selection_decision.json`.
+  - [x] Run Phase 3 selection validation slice: `PYTHONPATH=src:src/evaluation uv run pytest src/phase3/tests src/phase1b/tests/test_ablation_runner.py src/phase1a/tests/test_promotion_gate.py src/evaluation/tests src/preprocessing/test_preprocess.py -q`.
+- [x] Issue #35 / P3-3: Optional deterministic ensemble or blending candidate.
+  - [x] RED: ensemble/blending is rejected unless explicitly approved.
+  - [x] GREEN: minimal Phase 3 optional ensemble gate public interface passes tracer test.
+  - [x] Add deterministic output contract tests for approved blending.
+  - [x] Run targeted Issue #35 tests: `PYTHONPATH=src uv run pytest src/phase3/tests/test_optional_ensemble.py -q`.
+  - [x] Run Phase 3 optional ensemble validation slice: `PYTHONPATH=src:src/evaluation uv run pytest src/phase3/tests src/phase1a/tests/test_residual_inference.py src/evaluation/tests src/preprocessing/test_preprocess.py -q`.
+- [x] Issue #36 / P3-4: Harden final packaging and model-weight strategy.
+  - [x] RED: final packaging requires one weight-loading strategy and Grand Challenge runtime checks.
+  - [x] GREEN: minimal Phase 3 final packaging public interface passes tracer test.
+  - [x] Add output slug/MHA/model-weight path tests.
+  - [x] Run targeted Issue #36 tests: `PYTHONPATH=src uv run pytest src/phase3/tests/test_final_packaging.py -q`.
+  - [x] Run Phase 3 packaging validation slice: `PYTHONPATH=src:src/evaluation uv run pytest src/phase3/tests src/phase1a/tests/test_submission_package.py src/submission/identity-baseline/test_algorithm.py -q`.
+- [x] Issue #37 / P3-5: Produce final decision record and submission evidence bundle, or terminal documented blocked state if no promoted final candidate exists.
+  - [x] RED: final evidence bundle records selected candidate decision, audit fields, provenance, and optional official submission records.
+  - [x] GREEN: minimal Phase 3 final evidence bundle public interface passes tracer test for a real selected candidate.
+  - [x] Add top-3 provenance readiness tests.
+  - [x] Strengthen after audit: reject null `selected_candidate` and null required audit fields instead of accepting a no-candidate bundle.
+  - [x] Run targeted Issue #37 tests: `PYTHONPATH=src uv run pytest src/phase3/tests/test_final_evidence_bundle.py -q`.
+  - [x] Remove invalid null final bundle and write blocked note: `experiments/phase3/final_evidence_bundle_blocked.json`.
+  - [x] Terminal blocked state accepted by tweaked goal: no promoted final candidate exists, so a semantically valid final bundle with selected candidate, config, split, metrics, inference settings, model hash, and container version cannot be produced yet.
+- [x] Implement approved issues one at a time with `/skill:tdd` red-green-refactor cycles.
+- [x] Run relevant validation for each completed/blocked issue and record results.
+- [x] Write final handoff: `docs/draft-issues/phase-0-1b-2-3-final-handoff.md`.
+- [x] Complete final broad validation: `PYTHONPATH=src:src/evaluation uv run pytest src/phase0/tests src/phase1a/tests src/phase1b/tests src/phase2/tests src/phase3/tests src/evaluation/tests src/preprocessing/test_preprocess.py src/submission/identity-baseline/test_algorithm.py -q` -> 197 passed, 3 skipped.
+- [x] Complete final completion audit in `docs/draft-issues/phase-0-1b-2-3-final-handoff.md`.
+
+## Active task: Current experiment readiness audit
+
+- [x] Compare current repository artifacts against `STRATEGY.md` phase roadmap.
+- [x] Inspect Phase 0/1A/1B/2/3 implementation surfaces and experiment evidence.
+- [x] Verify current broad validation still passes.
+- [x] Summarize current stage, blockers, and next experiment step.
+
+## Active task: Phase 1B first real-debug experiment driver
+
+- [x] Inspect existing Phase 1B config, runner, model comparator, and Phase 1A CLI pattern.
+- [x] Add a minimal tested Phase 1B CLI/driver for `configs/phase1b/unet_residual_smoke_v1.yaml`.
+- [x] Run the fixed real debug split command and confirm output artifacts.
+- [x] Record the canonical command and validation result.
+  - Command: `PYTHONPATH=src uv run python -m phase1b.run configs/phase1b/unet_residual_smoke_v1.yaml`.
+  - Output: `experiments/phase1b/unet_residual_smoke_v1/run_summary.json`, `metrics/ablation_summary.json`, `metrics/holdout_fidelity_by_case.csv`, `checkpoint.npz`, and hold-out `.mha` predictions.
+  - Validation: `PYTHONPATH=src:src/evaluation uv run pytest src/phase1b/tests src/phase1a/tests src/evaluation/tests src/preprocessing/test_preprocess.py -q` -> 165 passed, 3 skipped.
+  - Broad validation: `PYTHONPATH=src:src/evaluation uv run pytest src/phase0/tests src/phase1a/tests src/phase1b/tests src/phase2/tests src/phase3/tests src/evaluation/tests src/preprocessing/test_preprocess.py src/submission/identity-baseline/test_algorithm.py -q` -> 200 passed, 3 skipped.
+
+## Active task: Phase 1B scanner-protocol augmentation comparison
+
+- [x] Inspect current Phase 1B augmentation API and run driver constraints.
+- [x] Add scanner-protocol-intensity config and driver support.
+- [x] Run disabled-vs-augmentation comparison with the same command pattern.
+- [x] Record metrics and validation result.
+  - Disabled command: `PYTHONPATH=src uv run python -m phase1b.run configs/phase1b/unet_residual_smoke_v1.yaml`.
+  - Augmentation command: `PYTHONPATH=src uv run python -m phase1b.run configs/phase1b/unet_residual_scanner_protocol_intensity_v1.yaml`.
+  - Comparison artifact: `experiments/phase1b/augmentation_comparison_v1.json`.
+  - Debug result: scanner augmentation image-fidelity MSE 2.9627 vs disabled 2.9824; tumor ROI MSE 37.6535 vs disabled 37.0752.
+  - Validation: `PYTHONPATH=src:src/evaluation uv run pytest src/phase0/tests src/phase1a/tests src/phase1b/tests src/phase2/tests src/phase3/tests src/evaluation/tests src/preprocessing/test_preprocess.py src/submission/identity-baseline/test_algorithm.py -q` -> 201 passed, 3 skipped.
+
+## Active task: Phase 1B scanner-protocol seed/range sensitivity
+
+- [x] Add 2-3 separate scanner-protocol-intensity YAML variants.
+- [x] Run each variant with the fixed Phase 1B driver command pattern.
+- [x] Compare image MSE and tumor ROI MSE against disabled and original scanner augmentation.
+- [x] Record whether ROI MSE degradation appears seed/range-sensitive on the debug split.
+  - Sensitivity artifact: `experiments/phase1b/scanner_protocol_sensitivity_v1.json`.
+  - Result: ROI MSE degradation is seed/range-sensitive on n=2 debug split; seed29 mild improves ROI MSE vs disabled, while seed17 mild/narrow/wide worsen ROI MSE, with the wide range worst.
+  - Validation: `PYTHONPATH=src:src/evaluation uv run pytest src/phase0/tests src/phase1a/tests src/phase1b/tests src/phase2/tests src/phase3/tests src/evaluation/tests src/preprocessing/test_preprocess.py src/submission/identity-baseline/test_algorithm.py -q` -> 201 passed, 3 skipped.
+
+## Active task: Phase 1B official evaluator shortlist comparison
+
+- [x] Run the full local evaluator for disabled U-Net and scanner seed29 mild candidates on the same debug split.
+- [x] Fix old XGBoost classifier pickle compatibility so AUROC metrics are reported instead of silently skipped.
+- [x] Record the official shortlist comparison artifact.
+  - Disabled metrics: `experiments/phase1b/unet_residual_smoke_v1/official_metrics/metrics.json`.
+  - Scanner seed29 mild metrics: `experiments/phase1b/unet_residual_scanner_protocol_intensity_seed29_v1/official_metrics/metrics.json`.
+  - Comparison artifact: `experiments/phase1b/official_shortlist_comparison_v1.json`.
+  - Result: seed29 mild slightly improves FRD, LPIPS, and SSIM-tumor; slightly worsens MSE; AUROC and segmentation aggregates tie on the n=2 debug split.
+  - Promotion decision: no submission candidate promotion from this evidence alone because the split is only n=2 debug smoke evidence and Dice remains 0.0 for both candidates.
+  - Focused validation: `PYTHONPATH=src:src/evaluation uv run pytest src/evaluation/tests src/phase1b/tests -q` -> 79 passed, 3 skipped.
+  - Broad validation: `PYTHONPATH=src:src/evaluation uv run pytest src/phase0/tests src/phase1a/tests src/phase1b/tests src/phase2/tests src/phase3/tests src/evaluation/tests src/preprocessing/test_preprocess.py src/submission/identity-baseline/test_algorithm.py -q` -> 202 passed, 3 skipped.
+
+## Active task: Post-goal summary rule and commit
+
+- [x] Summarize the completed goal result in Korean for the user.
+- [x] Add an `AGENTS.md` rule requiring Korean goal completion summaries.
+- [x] Commit the major tracked changes from the completed goal.

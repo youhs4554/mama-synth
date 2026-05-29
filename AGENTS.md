@@ -8,6 +8,14 @@ This repository supports the MAMA-SYNTH breast MRI synthesis challenge. Core Pyt
 
 Before changing model design, preprocessing assumptions, or evaluation strategy, read `STRATEGY.md`. It summarizes the MAMA-SYNTH task, metric tradeoffs, baseline constraints, and recommended development roadmap.
 
+### Design-grounded development (living-design workflow)
+
+All development must be grounded in the authoritative design/strategy documents: `STRATEGY.md`, `CONTEXT.md`, the relevant `docs/prd/` PRD, and `docs/adr/` ADRs.
+
+- Before implementing, verify the approach matches these documents. Do not introduce a model architecture/framework, preprocessing assumption, evaluation strategy, or submission-contract change that contradicts them.
+- If implementation shows a design or strategy change is genuinely needed, get user approval, then **update the authoritative document(s) as part of the same change** (record what changed, why, and the date) so design and code never drift apart. This keeps the design "living" and lets the team adapt fluidly.
+- When the right path is an undocumented choice or a blocked alternative (e.g., missing model weights, reference-model inference vs training from scratch), stop and ask instead of silently picking.
+
 ## README Reference
 
 Use `README.md` as the concise operational entry point for this repository. It describes the repository layout, quick-start commands, preprocessing flow, local evaluation setup, bundled evaluation model location, and submission baseline usage. When updating contributor guidance or strategy notes, keep them consistent with the README rather than duplicating long command walkthroughs.
@@ -81,6 +89,8 @@ Use a local-first experiment tracker for model training and ablation runs. The d
 Each training run should log enough context to reproduce the result: git commit, command line, config file path and resolved hyperparameters, dataset split identifier, preprocessing statistics, model architecture variant, random seed, checkpoint path, Docker/submission template version if relevant, and hardware/runtime metadata. Log validation metrics using the challenge grouping vocabulary: image fidelity (`mse`, `lpips`), tumor ROI realism (`ssim_tumor`, `frd`), classification proxies (`auroc_contrast`, `auroc_tumor_roi`), segmentation proxies (`dice`, `hd95`), and the proxy rank-average used for checkpoint selection.
 
 Run long-running work such as model training, full-dataset preprocessing, full evaluator sweeps, large data-munging jobs, or external-agent reviews in the background with durable logs under `experiments/` or another ignored output directory. Do not block the active working session waiting on these jobs when other useful work can continue. Start a lightweight watchdog/monitor script alongside the job that tails logs and watches metrics/checkpoints; report back when meaningful intermediate results appear, such as first validation metrics, best-checkpoint improvement, metric regression, NaN/loss explosion, OOM, stalled progress, or job completion/failure. Include the background PID/log path and the watchdog command in progress updates.
+
+GPU 0 only (mandatory): always run GPU workloads on GPU 0 and never on any other GPU, even though the host has two cards. Set `CUDA_VISIBLE_DEVICES=0` on every GPU command and serialize all GPU work — training, inference, and the official evaluator (its segmentation stage runs on GPU) — onto GPU 0. Explicitly override any tool/script default that targets a different device (for example pass `--gpu 0`, since `eval_finetuned.py` defaults to GPU 1). Never use GPU 1 and never run on two GPUs at once: operationally, concurrent/second-GPU use has hard-crashed this server (logless instant shutdown with automatic ~85s power-on, consistent with a power/PSU trip from combined draw; e.g. the 2026-05-30 03:17 crash that killed an in-progress GPU fine-tune). Before launching any GPU job, run `nvidia-smi` and confirm GPU 0 is free; if GPU 0 is busy, queue and wait rather than falling back to GPU 1.
 
 Do not upload protected MRI slices, masks, generated challenge outputs, or model weights to cloud experiment trackers. If an external service such as Weights & Biases is used, run it in offline/private mode and log only scalar metrics, plots derived from aggregate metrics, sanitized configuration, and small non-identifying debug images when explicitly approved. Grand Challenge inference containers must not depend on a monitoring service because runtime network access is unavailable.
 

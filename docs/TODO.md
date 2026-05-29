@@ -114,7 +114,10 @@
 - [x] Check for local dataset, split manifest, experiment outputs, and fixed evaluator model directories.
 - [x] Add or identify the smallest command for running Phase 1A on a real split.
 - [x] Run Phase 1A on real train/hold-out data.
-- [ ] Produce baseline metric table for Phase 1A before Phase 1B ablations.
+- [x] Produce baseline metric table for Phase 1A before Phase 1B ablations.
+  - [x] Compute identity lower-bound fidelity metrics on the debug hold-out split.
+  - [x] Compute current constant-residual Phase 1A fidelity metrics on the same split.
+  - [x] Save a comparable CSV/JSON metric table under ignored experiment outputs.
 
 ## Active task: Phase 1A real datasets split/config
 

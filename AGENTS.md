@@ -82,7 +82,7 @@ Do not upload protected MRI slices, masks, generated challenge outputs, or model
 
 ## Communication Guidelines
 
-After completing a long-running workflow such as a `/goal`, state the recommended next concrete step. Keep it short and actionable, for example: "Next step: run the first debug experiment" or "Next step: prepare the split manifest." Do not add next-step guidance to every routine response unless it clarifies an active workflow or blocker.
+When a response ends in a ready/waiting state, provide a short "Suggested next step" so the user is not left wondering what to do next. Keep it concise and practical: one recommended action, plus up to two alternatives only when useful. For long-running workflows such as `/goal`, include the next concrete workflow step and any required input or validation command. If blocked, state the smallest unblock action instead.
 
 ## Commit & Pull Request Guidelines
 

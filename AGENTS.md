@@ -80,6 +80,10 @@ Each training run should log enough context to reproduce the result: git commit,
 
 Do not upload protected MRI slices, masks, generated challenge outputs, or model weights to cloud experiment trackers. If an external service such as Weights & Biases is used, run it in offline/private mode and log only scalar metrics, plots derived from aggregate metrics, sanitized configuration, and small non-identifying debug images when explicitly approved. Grand Challenge inference containers must not depend on a monitoring service because runtime network access is unavailable.
 
+## Communication Guidelines
+
+At each response or meaningful checkpoint, state the next concrete step before continuing. Keep it short and actionable, for example: "Next step: run the targeted tests" or "Next step: update the split manifest." If work is blocked, state the next unblock action instead of a normal continuation step.
+
 ## Commit & Pull Request Guidelines
 
 Recent history uses short imperative or descriptive commit messages, such as `Add submission documentation` and `Further updates during testing and debugging...`. Keep each commit scoped to one concern. Pull requests should describe the affected pipeline area, list validation commands run, note any required external data or model weights, and include metric excerpts or screenshots when outputs or documentation change.

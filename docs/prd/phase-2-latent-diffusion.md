@@ -3,7 +3,8 @@
 ## Reference Documents
 
 - `CONTEXT.md` defines canonical project terminology used by this PRD.
-- `STRATEGY.md` defines Phase 2 as a time-permitting high-performance path using latent diffusion rather than pixel-space full-resolution DDPM.
+- `STRATEGY.md` defines Phase 2 as a time-permitting high-performance path using latent diffusion rather than pixel-space full-resolution DDPM. STRATEGY §2.7 records that CC-Net ships code only (no released weights).
+- `docs/research/pretrained_synthesis_models_deep_research.md` surveys which generative weights are downloadable; it underpins the frozen-backbone choice below.
 - Phase 1A and Phase 1B PRDs define the reusable contracts for split manifests, experiment configs, hold-out evaluation, promotion gates, and submission smoke tests.
 
 ## Problem Statement
@@ -49,7 +50,9 @@ Phase 2 must not begin as a speculative rewrite. It starts only after Phase 1A/1
 - Phase 2 is gated by Phase 1 evidence and should not start unless there is time and a clearly defined metric gap.
 - Pixel-space full-resolution DDPM is avoided because it is too risky for the local GPU and timeline.
 - The default Phase 2 family is conditional latent diffusion with a frozen autoencoder and pre-contrast conditioning.
-- Pretrained resources must be public, policy-compliant, documented, and available before the challenge resource cutoff.
+- CC-Net's own trained weights are **not publicly released** (code only, Apache-2.0), per the 2026-05-30 pretrained-model survey. Phase 2 therefore means reproducing the CC-Net recipe on a frozen *downloadable* autoencoder, not loading CC-Net weights.
+- The default frozen backbone is the Stable Diffusion 2.1 VAE (OpenRAIL++), with the MONAI MAISI VAE (Apache-2.0) as fallback if the SD VAE underperforms on 2D MRI.
+- Pretrained resources must be public, policy-compliant, documented, and available before the challenge resource cutoff (2026-05-07 23:59 CET; no NIH CADR/private data). SD2.1 OpenRAIL terms for challenge use must be verified before any submission.
 - The model input contract remains pre-contrast only at inference time.
 - Tumor masks may be used for training losses or local evaluation, but not as submission inputs.
 - The final artifact remains synthetic post in z-score float32 image space, not a latent, residual, or subtraction image.

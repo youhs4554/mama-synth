@@ -458,6 +458,21 @@
 - [x] Run focused validation and record result.
   - `PYTHONPATH=src:src/evaluation uv run pytest src/phase1b/tests src/phase1a/tests/test_split_manifest.py -q` -> 37 passed in 0.54s.
 
+## Active goal: Recover crashed pix2pixHD fine-tune + evaluate (server hard-crash 2026-05-30 03:17)
+
+- [x] Diagnose server outage: bare-metal hard/unclean shutdown at 03:17:47 (journald "uncleanly shut down", `last` crash, no panic/OOM/thermal/MCE, ~85s auto power-on) — most likely AC power loss; no UPS present. Phase 1B U-Net artifacts (00:55) unaffected.
+- [x] Identify that a separate session's pix2pixHD fine-tune was the crash victim: `experiments/phase1b/finetune_pix2pixhd_v1/` (target 30 epochs, batch 4, warm-start from 00023 `30_net_G.pth`) reached epoch 16/30, then crash hit just before evaluation (no fine-tuned metrics existed).
+- [x] Verify recovery prerequisites: 2 GPUs back (A4500, 3080 Ti); both checkpoints intact (`30_net_G.pth` best e1, `30_net_G_last.pth` last e16, 182.4M params each); full_dataset_v1 preprocessed pool + LOSO/full-dataset manifests present; no NACT leakage in train.
+- [x] Run the missing fine-tuned evaluation via existing `eval_finetuned.py` (pre-contrast-only inference + fixed evaluator) on the 4 NACT hold-out for both best and last checkpoints.
+  - Log: `experiments/phase1b/finetune_pix2pixhd_v1/logs/eval_recover_20260530-082942.log` -> exit 0; predictions 4/4 each.
+  - Metrics: `eval_nact4_last_e16/` and `eval_nact4_best_e1/official_metrics/metrics.json`.
+  - `.mha` contract verified: float32, native (256,256)=input, metadata preserved, synthetic post (corr +0.913..+0.951), pre-contrast-only.
+- [x] Write comparison artifact + decision.
+  - Artifact: `experiments/phase1b/finetune_pix2pixhd_v1/pix2pixhd_finetune_comparison_v1.{json,md}`.
+  - Result: fine-tuning rescued the zero-shot GAN (Dice 0.050->0.567, HD95 283->36/100, AUROC-contrast 0.25->0.75, MSE halved). vs U-Net base16: GAN wins Dice/AUROC-tumor/HD95, loses MSE/LPIPS/SSIM-tumor. val_l1 is a poor selection proxy (e16 > e1 on real metrics).
+  - Promotion decision: `no_promotion_exploratory_only`; strong positive signal for the STRATEGY pix2pixHD-first track, but SSIM-tumor negative, MSE/LPIPS trail U-Net, n=4 too small.
+- [ ] Next: resume fine-tune to 30 (+) epochs, metric-based checkpoint selection, evaluate on 64-case LOSO NACT, investigate NACT_02 Dice=0 + negative SSIM-tumor.
+
 ## Active goal: Re-delegate Phase 1B full-dataset U-Net transition to Claude
 
 - [x] Inspect current Claude/Phase 1B handoff context, experiment artifacts, split/config state, and herdr agent availability.
@@ -474,3 +489,47 @@
 - [x] Update docs/specs to clarify current experiment order, no-promotion status, full-dataset split/config priority, shape-handling constraint, and GPU-conditional heavier ablations.
 - [x] Validate documentation changes and commit only documentation/spec files, excluding Claude's active code changes.
   - Validation: parsed selected Phase 1B split JSON and YAML config specs with `uv run python`; grep confirmed updated full-dataset/order/no-promotion/shape-handling language.
+
+## Active goal: Phase 1B full-dataset U-Net transition (executing in Claude)
+
+Objective: create a full-dataset Phase 1B split/config and switch the baseline U-Net residual-regressor to full eligible local-dataset training, preserving all GC contracts. User add-on: push full-metric tables + a leaderboard briefing to the Claude mobile app on meaningful results.
+
+- [x] Resource/job check: no Atopix/sweep/phase1b/eval job running (nothing killed). GPU available: RTX A4500 20GB + RTX 3080 Ti 12GB, both idle. Comparator is closed-form NumPy lstsq (CPU); GPU reserved for heavier follow-on experiments.
+- [x] Enable variable-shape + full-dataset training in the existing NumPy comparator (deliberate minimal fix, no contract change):
+  - Removed the cross-case same-shape guard in `train_unet_residual_regressor` (`src/phase1b/models.py`).
+  - Refactored `fit_residual_head` to accumulate least-squares normal equations (Gram matrix) incrementally in float64 — mathematically identical to the prior stacked `lstsq`, but O(features^2) memory so it scales to ~1153 variable-shape cases (stacked design would be ~9.6 GB at base16).
+  - TDD: added `test_train_unet_residual_regressor_supports_variable_native_shapes` (RED→GREEN). `src/phase1b/tests/test_unet_comparator.py` -> 7 passed; focused `src/phase1b/tests src/phase1a/tests/test_split_manifest.py` -> 38 passed.
+- [x] Scope decision (split semantics): train = full preprocessable `train_split` minus NACT (DUKE 200 + ISPY1 104 + ISPY2 849 = 1153 staged); hold-out = the fixed n=4 NACT center-held-out cases reused from `phase1b_center_heldout_nact_v1` so the leaderboard stays apples-to-apples vs prior base8/base16/seed29/train6 runs. n=4 hold-out is exploratory, NOT promotion-grade. Local `test_split` not used for training; official validation/test (Radboud/Fleming) absent locally => no official leakage.
+- [x] Config: `configs/phase1b/unet_residual_full_dataset_v1.yaml` (base16, augmentation disabled, residual target, pre-contrast-only inference, synthetic-post output, fixed evaluator settings).
+- [x] Manifest generator: `experiments/phase1b/full_dataset_v1/build_manifest.py` -> writes `splits/phase1b_full_dataset_v1.json` after preprocessing (records source/center metadata, seed, roots, normalization stats, selection strategy, exclusions, not-promotion-grade note).
+- [x] End-to-end contract smoke (variable-shape 448/512 train -> n=4 NACT holdout): predictions native 256², float32, finite, metadata preserved, synthetic-post (corr(pred,GT) 0.87-0.94). Smoke artifacts removed.
+- [x] Bulk-preprocess `train_split` minus NACT to 2D `.mha`: parallelized 6 workers (kill+chunk), 1153/1153 produced (200 DUKE + 104 ISPY1 + 849 ISPY2), 0 skipped, ~12 min wall. Output `experiments/phase1b/full_dataset_v1/preprocessed/`.
+- [x] Generate full-dataset manifest (`experiments/phase1b/full_dataset_v1/build_manifest.py` -> `splits/phase1b_full_dataset_v1.json`, train=1153, hold-out=4 NACT, model_selection_holdout).
+- [x] Run base16 full-dataset NumPy comparator train/inference (bg `boa0ba62g`, exit 0, ~52 min, peak RSS 2.8 GB) -> `experiments/phase1b/full_dataset_v1/unet_residual_base16_full_v1/` + fixed official evaluator (bg `bv8j7kl0l`, exit 0): MSE 0.2046, LPIPS 0.0730, SSIM-tumor 0.4654, FRD 8.0249, AUROC-c 0.75, AUROC-roi 0.625, Dice 0.0986, HD95 285.63.
+- [x] Reference GAN (medigan 00023 pix2pixHD) weights downloaded (Zenodo 10215478, 696 MB, staged gitignored `src/submission/submission-gan/models/00023/30_net_G.pth`), inference on 4 NACT (z-score<->PNG), fixed evaluator (bg `bgjf6boya`, exit 0): MSE 0.8558, LPIPS 0.2109, SSIM-tumor -0.3236, FRD 8.0730, AUROC-c 0.25, AUROC-roi 0.50, Dice 0.0497, HD95 282.68 (weak — Duke->NACT domain shift). Phase 0 "reference GAN not reproducible" blocker now resolved.
+- [x] Build leaderboard (`experiments/phase1b/leaderboard_full_dataset_v1.{json,md}`) + decision artifact (`experiments/phase1b/full_dataset_v1/full_dataset_promotion_decision_v1.{md,json}`).
+- [x] Decision: `no_promotion_exploratory_only`. Full-dataset (1153) did NOT clearly beat small-train base16 (only LPIPS best; SSIM-tumor/FRD/Dice regress) — fixed-random-feature comparator ceiling. Reference GAN weak on NACT. n=4 exploratory, Dice≈0.
+- [x] Focused validation: `PYTHONPATH=src:src/evaluation uv run pytest src/phase1b/tests src/phase1a/tests/test_split_manifest.py -q` -> 38 passed (incl. new variable-shape comparator test).
+- [x] Living-design governance norm added to `CLAUDE.md` + `AGENTS.md`; STRATEGY.md §4.2 amended with 2026-05-30 현황 + model-path re-alignment. nnU-Net confirmed evaluator-only (not generator); abandoned custom PyTorch/MONAI U-Net detour cleaned up (files removed, monai uninstalled).
+- Notifications: user was in-session throughout, so reported in-session rather than mobile-pushing (push reserved for meaningful improvement events while away).
+- Next model step (design-aligned, awaiting go-ahead): train our own pix2pixHD on the full dataset (STRATEGY §4.2 Phase 1A: subtraction + ROI weighted L1 + feature matching + adversarial), then resume isolated ablations on a larger/more reliable hold-out before promotion.
+
+## Active task: Prepare experiment monitoring and watch Claude training handoff
+
+- [x] Install MLflow/TensorBoard in the local `uv` environment and create monitoring directories.
+  - Evidence: `uv pip install mlflow tensorboard`; `uv run python` imports both; created `experiments/mlruns/` and `experiments/tensorboard/`.
+- [x] Tell Claude to log full-dataset experiments under the agreed `experiments/` MLflow/TensorBoard structure.
+  - Evidence: sent a `Pi note` via `herdr pane send-text` requiring local MLflow `file:./experiments/mlruns`, TensorBoard `./experiments/tensorboard`, metadata/metric schema, and no external protected-data uploads.
+- [x] Start a durable `herdr`-based monitor that watches Claude until preprocessing completes and training starts.
+  - Evidence: `experiments/phase1b/full_dataset_v1/monitor_claude_training.sh` running as PID 556605; latest log `experiments/phase1b/full_dataset_v1/logs/claude_training_monitor_20260530-012719.log`.
+- [x] Report monitor PID/log path and the eventual UI locations for experiment monitoring.
+  - Evidence: MLflow UI is on `http://127.0.0.1:5000`; TensorBoard is on `http://127.0.0.1:6006`; status file is `experiments/phase1b/full_dataset_v1/logs/claude_training_monitor_status.txt`.
+
+## Active goal: Pretrained-model leverage research + larger hold-out (parallel, 2026-05-30)
+
+User direction: proceed in parallel (own-pix2pix path + larger hold-out) AND deep-research medigan/other synthesis algorithms to maximally leverage pretrained models. Key reframe: "leverage pretrained" => fine-tune the already-downloaded pretrained 00023 generator on our full dataset (domain adaptation Duke->MAMA-MIA), not train pix2pixHD from scratch.
+
+- [x] Deep research (background agent a5c7980183b82be3d): pretrained synthesis models (medigan zoo, CC-Net, TeNCA, SynDiff, MONAI MAISI, HF medical) + transfer/fine-tune/ensemble strategy + challenge eligibility -> `docs/research/pretrained_synthesis_models_deep_research.md`. Key finding: `00023` is the only downloadable breast pre→post checkpoint; everything else is code+data, no released weights.
+- [x] Reflect deep research into strategy + spec docs: STRATEGY §2.7 (pretrained availability/eligibility table + leverage priority), §4.2 model-path bullet refined to warm-start/fine-tune from `00023`, references updated; Phase 1A PRD warm-start + eligibility decisions; Phase 2 PRD CC-Net-weights-not-released + frozen-backbone (SD2.1 VAE / MAISI fallback) note.
+- [x] Larger hold-out track: preprocessed ALL NACT (now 1217 total: DUKE200+ISPY1104+ISPY2849+NACT64). Built + validated 4 leave-one-source-out manifests: `splits/phase1b_loso_{nact,duke,ispy1,ispy2}_v1.json`. CV strategy: `docs/phase1b_holdout_cv_strategy.md` (primary promotion-grade folds = NACT-out n=64/train1153 and DUKE-out n=200/train1017).
+- [ ] Deferred until research fixes model choice: implement fine-tuning of chosen pretrained generator on full dataset (train loop + .mha aligned-dataset adapter), then run LOSO (NACT-out -> DUKE-out) with fixed evaluator; record promotion/no-promotion. No promotion until a credible fold's four metric groups are jointly satisfied.

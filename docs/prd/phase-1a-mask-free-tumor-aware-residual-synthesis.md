@@ -3,7 +3,8 @@
 ## Reference Documents
 
 - [CONTEXT.md](../../CONTEXT.md) defines canonical project terminology used by this PRD.
-- [STRATEGY.md](../../STRATEGY.md) defines the challenge strategy, roadmap, metric tradeoffs, and submission gates that inform this PRD.
+- [STRATEGY.md](../../STRATEGY.md) defines the challenge strategy, roadmap, metric tradeoffs, and submission gates that inform this PRD. STRATEGY §2.7 records the pretrained-model availability survey behind the warm-start decision below.
+- [research/pretrained_synthesis_models_deep_research.md](../research/pretrained_synthesis_models_deep_research.md) surveys downloadable pretrained generative resources, licenses, and challenge eligibility for the leverage strategy.
 
 ## Problem Statement
 
@@ -57,6 +58,8 @@ This PRD stops at the planning/specification level. It does not start implementa
 
 - Phase 1A will implement **mask-free tumor-aware residual synthesis**.
 - The first backbone will be a pix2pixHD-style ROI/SUB model.
+- The pix2pixHD-first backbone is **warm-started from the public medigan `00023` generator weights** (Zenodo 10.5281/zenodo.10215478; code Apache-2.0, weights CC-BY-4.0) and fine-tuned on the full eligible local set as Duke→MAMA-MIA domain adaptation. A 2026-05-30 pretrained-model survey (`docs/research/pretrained_synthesis_models_deep_research.md`) confirmed `00023` is the only downloadable breast pre→post checkpoint, so warm-start — not random init or from-scratch training — is the primary leverage path.
+- Any leveraged pretrained resource must clear the challenge eligibility filter: public, documented, and accessible before 2026-05-07 23:59 CET, with no NIH CADR or other private data. The MAMA-MIA training set is CC-BY-NC (academic challenge use).
 - The model input contract is pre-contrast only.
 - The training target is the residual between peak-enhancement post-contrast and pre-contrast.
 - The evaluation and submission output is always synthetic post, reconstructed from pre-contrast plus predicted residual.

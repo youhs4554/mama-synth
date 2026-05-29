@@ -177,6 +177,26 @@ DCE-MRI는 유방암 진단·치료계획·모니터링에 핵심이지만, gado
 | **Perception–distortion 균형** | Blau&Michaeli'18, YODA arXiv:2505.02048 | regression-style/few-step 샘플링으로 곡선상 유리점 선택 |
 | **정규화/도메인 강건성** | SynthRAD'23 | train/inference z-score 정확히 일치, 테스트 분포(3T/1.5T) 강건화 |
 
+### 2.7 사전학습 모델 가용성 & 활용 전략 (deep research, 2026-05-30)
+전체 산출물: `docs/research/pretrained_synthesis_models_deep_research.md`. 적격성 컷오프 = 공개·문서화·접근가능 < 2026-05-07 23:59 CET, NIH CADR/비공개 데이터 불가.
+
+**핵심 발견 — 다운로드 가능한 유방 pre→post 가중치는 단 하나뿐.** 전수 조사 결과 이 task용 공개 체크포인트는 medigan **`00023`(pix2pixHD, Duke, Zenodo 10215478, CC-BY-4.0)** 하나이며, 우리는 이미 확보했으나 NACT zero-shot이 약하다(MSE 0.856, SSIM-tumor 음수, AUROC-c 0.25). CC-Net·TeNCA·Ibarra DDPM·SynDiff는 모두 **코드+공개데이터는 있으나 가중치 미공개**다. 따라서 "사전학습 활용"의 실체는 *공개 레시피 + 공개 데이터 + 동결 SD/MAISI AE + `00023` warm-start*이지, 받아서 쓰는 유방 생성기 가중치가 아니다.
+
+| 자원 | 가중치 | 라이선스(코드/가중치) | 적격 | 활용 |
+|---|---|---|---|---|
+| medigan `00023` pix2pixHD | **있음**(Zenodo 10215478) | Apache-2.0 / CC-BY-4.0 | ✓ | **warm-start init**(최우선) |
+| `SimulatingDCE`(다중 phase) | 00023 계열 [불확실] | Apache-2.0 / — | ✓ | peak-phase 채널 필요 시 |
+| CC-Net(`ccnet`) | **없음**(코드만) | Apache-2.0 / — | ✓ | 레시피 재현(Phase 2) |
+| TeNCA | **없음**(코드만, 13k params) | Apache-2.0 / — | ✓ | image-level 앙상블 특화(Phase 3) |
+| Ibarra DDPM 비교 | **없음**(코드만) | MIT / — | ✓ | SUB-best 레시피 근거 |
+| SD2.1 VAE(HF) | 있음 | OpenRAIL++ | ✓ [제출 전 약관 확인] | CC-Net 동결 backbone |
+| MONAI MAISI VAE | 있음 | Apache-2.0 | ✓ | SD2.1 대안 backbone [2D 적합 불확실] |
+| SynDiff/BrLP/`00021` | 유방 아님 | — | n/a | 적용 불가(유방 pre→post 가중치 없음) |
+
+**활용 우선순위(ROI×20GB 실현성):** ① `00023` warm-start로 full eligible set(DUKE200+ISPY1104+ISPY2849=1153)에서 pix2pixHD fine-tune(=Duke→MAMA-MIA 도메인 적응) → ② CC-Net식 latent diffusion(동결 SD2.1 VAE+ControlNet)으로 realism/FRD 도전 → ③ TeNCA 경량 fidelity 특화 앙상블. **하지 말 것:** `00023` zero-shot/경량 fine-tune에만 베팅(①에 흡수됨), SynDiff/BrLP/MAISI를 생성기로 추구.
+
+**적격성·라이선스 주의:** MAMA-MIA 데이터셋은 **CC-BY-NC(비상업)**(Synapse syn60868042) — 챌린지 자체 학습셋이라 학술 사용은 무방하나 비상업 조건 인지. SD2.1 OpenRAIL 약관의 챌린지 사용 가능 여부는 **제출 전 확인** 필요. 권장 자원 전부 컷오프 통과, NIH CADR 미사용.
+
 ---
 
 ## 3. 전처리 & 평가 방법 (주최측 코드 분석: `mama-research/mama-synth`)
@@ -349,6 +369,12 @@ cp -r submission-gan submission-my-model
 - 다음 실험 순서는 full eligible local dataset을 명시한 split/config를 만들고 baseline U-Net full-dataset 학습/추론을 먼저 안정화한 뒤, 동일 계약 안에서 isolated ablation을 추가하는 것이다.
 - 우선순위: ① full-dataset/base16 U-Net 확인 ② tumor ROI loss-weight sweep ③ scanner/protocol intensity augmentation 재검증 ④ LPIPS/perceptual 또는 pix2pixHD-style feature matching ⑤ auxiliary segmentation branch 또는 tumor ROI discriminator. predicted-mask conditioning처럼 inference contract를 바꾸는 접근은 별도 승인/PRD 전에는 진행하지 않는다.
 
+**현황 업데이트 (2026-05-30) — full-dataset 베이스라인 + reference GAN 재현, 모델 경로 재정렬**
+- NumPy U-Net comparator의 same-shape 제약을 제거(정규방정식 누적)하고 full eligible local dataset(`train_split` − NACT = DUKE 200 + ISPY1 104 + ISPY2 849 = 1153)을 전처리해 `splits/phase1b_full_dataset_v1.json`로 baseline U-Net full-dataset 학습/추론을 실행했다. 결과(n=4 NACT hold-out): LPIPS는 최저(0.073)이나 SSIM-tumor/FRD/Dice는 train6 base16 대비 회귀. **해석: 이 comparator는 고정 random conv feature 위 closed-form 선형 head라 데이터 250배 증가가 표현력으로 이어지지 않음 → 실제 backprop 학습 생성기가 필요하다는 실증.**
+- reference GAN(`submission-gan` medigan **00023** pix2pixHD)의 가중치 `30_net_G.pth`를 medigan(Zenodo 10215478, 공개)으로 확보해 Phase 0의 "reference GAN 재현 불가" blocker를 **해소**했다. n=4 NACT에서 추론·평가 결과는 **약함**(MSE 0.856, SSIM-tumor 음수, AUROC-contrast 0.25; Duke→NACT 도메인 시프트 + per-image uint8 PNG 브리징 왜곡). reference GAN을 primary performance baseline으로 기록하되, 로컬 comparator보다 NACT에서 못함.
+- **결정**: `no_promotion_exploratory_only`(혼합/회귀 증거, n=4 탐색용, Dice≈0). 근거 산출물 `experiments/phase1b/full_dataset_v1/full_dataset_promotion_decision_v1.{md,json}`, 리더보드 `experiments/phase1b/leaderboard_full_dataset_v1.{md,json}`.
+- **모델 경로 재정렬(사용자 지시, 2026-05-30)**: nnU-Net은 설계상 평가 segmenter일 뿐 생성기가 아니므로 생성기로 쓰지 않는다. 커스텀 PyTorch/MONAI U-Net 신규 구현 대신 **`00023` generator 가중치를 warm-start로 로드해 우리 full dataset에서 pix2pixHD를 fine-tune**(=Duke→MAMA-MIA 도메인 적응; Phase 1A pix2pixHD-first: subtraction + ROI weighted L1 + feature matching + adversarial)을 다음 모델 단계로 둔다. 딥리서치(§2.7)가 `00023`이 유일한 다운로드 가능 유방 pre→post 체크포인트임을 확인했으므로, random init/from-scratch가 아니라 warm-start가 1순위 leverage 경로다. 그 후 위 isolated ablation 순서를 재개하되, 승격 판단은 n=4보다 큰 신뢰 가능한 hold-out에서 한다.
+
 **Phase 2 — Latent Diffusion (고성능 도전, 2~3주, 시간 허용 시)**
 - **CC-Net 방식**: SD2.1 AE 동결 + ControlNet(pre-contrast 조건) + (subtraction 타깃). latent scale s≈0.1, grad value clip, batch≤8.
 - few-step/regression-style 샘플링(YODA/ExpA)으로 MSE 회복.
@@ -516,8 +542,9 @@ tensorboard \
 ## 참고문헌
 
 - **MAMA-SYNTH Challenge** — https://www.ub.edu/mama-synth/mama-synth · https://mamasynth.grand-challenge.org/ · proposal Zenodo:19852228 · code https://github.com/mama-research/mama-synth
-- **MAMA-MIA dataset** — Garrucho et al., *Scientific Data* 12:453 (2025); arXiv:2406.13844
-- **pix2pixHD pre→post (reference GAN 계열)** — Osuala et al., SPIE MI 2024; arXiv:2311.10879; code https://github.com/RichardObi/pre_post_synthesis
+- **MAMA-MIA dataset** — Garrucho et al., *Scientific Data* 12:453 (2025); arXiv:2406.13844; **라이선스 CC-BY-NC(비상업)**, Synapse syn60868042; repo https://github.com/LidiaGarrucho/MAMA-MIA
+- **pix2pixHD pre→post (reference GAN 계열, `00023` 가중치)** — Osuala et al., SPIE MI 2024; arXiv:2311.10879; code https://github.com/RichardObi/pre_post_synthesis; weights Zenodo 10.5281/zenodo.10215478 (CC-BY-4.0)
+- **SimulatingDCE (다중 phase DCE GAN)** — Osuala et al., 2024; arXiv:2409.18872; code https://github.com/RichardObi/SimulatingDCE (Apache-2.0)
 - **CC-Net (multi-condition LDM)** — Osuala et al., MICCAI 2024; arXiv:2403.13890; code https://github.com/RichardObi/ccnet
 - **Comparing conditional diffusion (MAMA-MIA)** — Ibarra/Osuala et al., Deep-Breath 2025; arXiv:2508.13776
 - **TeNCA (temporal NCA)** — Lang/Osuala et al., 2025; arXiv:2506.18720
@@ -528,7 +555,10 @@ tensorboard \
 - **Pinetz conditional dose reduction** — 2024; arXiv:2403.03539
 - **pix2pix / pix2pixHD** — Isola CVPR'17 / Wang CVPR'18 · **SPADE** Park'19 · **MedGAN** 2018 arXiv:1806.06397
 - **Palette** SIGGRAPH'22 · **BBDM** CVPR'23 arXiv:2205.07680 (의료 결정론 arXiv:2503.22531) · **SynDiff** TMI'23 arXiv:2207.08208 · **LDM** Rombach CVPR'22 · **MedLoRD** 2025 arXiv:2503.13211
+- **Stable Diffusion 2.1 VAE (동결 backbone)** — https://huggingface.co/stabilityai/stable-diffusion-2-1 (OpenRAIL++; 제출 전 약관 확인)
+- **MAISI / MONAI model-zoo (대안 latent backbone)** — arXiv:2409.11169; https://github.com/Project-MONAI/model-zoo (Apache-2.0)
 - **FRD metric** — Konz/Osuala et al., 2024; arXiv:2412.01496; code https://github.com/RichardObi/frd-score
+- **사전학습 모델 활용 deep research (2026-05-30)** — `docs/research/pretrained_synthesis_models_deep_research.md` (§2.7 근거)
 - **Perception–distortion** — Blau & Michaeli, CVPR 2018 · **YODA "Regression is all you need"** — 2025 arXiv:2505.02048
 - **SynthRAD2023** — Huijben et al., *Medical Image Analysis* 97:103276 (2024); arXiv:2403.08447
 - **medigan** — Osuala et al., *J. Medical Imaging* 2023; arXiv:2209.14472

@@ -9,7 +9,7 @@ A reproducible model, split, and metric result used as the performance compariso
 _Avoid_: using baseline to mean smoke-test container, reference submission, or first submit-ready model.
 
 **Smoke-test submission**:
-A submission artifact whose purpose is to verify the Grand Challenge input/output and container path, not to establish model performance.
+A submission artifact whose purpose is to verify the Grand Challenge input/output and container path, not to establish model performance. Distinct from **Submission smoke test**, the verification action.
 _Avoid_: baseline.
 
 **Reference GAN submission**:
@@ -17,7 +17,7 @@ The provided pix2pixHD/medigan-style submission used as an implementation refere
 _Avoid_: baseline, unless it has been run on the chosen split and recorded as the project baseline.
 
 **Submission candidate**:
-A model artifact and container configuration that is eligible for a Validation phase or Test phase submission after local verification. For Phase 1A, promotion requires no major group regression, at least two metric groups improving or staying useful, improved 4-group rank mean versus the primary performance baseline, and a passing submission smoke test.
+A model artifact and container configuration that is eligible for a Validation phase or Test phase submission after local verification. For Phase 1A, promotion requires no metric group worsening by more than 5% relative to the primary performance baseline, at least two metric groups improving or staying within that non-inferiority margin, improved local proxy rank mean versus the primary performance baseline, and a passing submission smoke test.
 _Avoid_: baseline.
 
 **Validation phase**:
@@ -40,12 +40,16 @@ _Avoid_: validation split, baseline split.
 A single JSON file under `splits/` that records train/hold-out membership, file paths, split strategy, seed, and nullable grouping metadata such as `center_id`. It is local training/evaluation metadata only and must not change submission filenames, MHA contents, or inference inputs.
 _Avoid_: encoding split metadata into filenames or requiring it at submission time.
 
+**Tumor ROI**:
+The binary tumor-mask region used for ROI metrics and tumor-weighted training losses. It is available for training and local hold-out evaluation, not as a submission input.
+_Avoid_: using ROI to imply test-time mask availability.
+
 **Tumor-aware synthesis**:
 Synthesis training that uses tumor location information to shape losses or auxiliary objectives while preserving a mask-free inference path unless explicitly stated otherwise.
 _Avoid_: using tumor-aware to imply ground-truth mask input at submission time.
 
 **Mask-free tumor-aware residual synthesis**:
-The Phase 1A contribution concept: a synthesis approach that learns enhancement residuals with tumor-aware training signals while requiring only the pre-contrast slice at inference time. Phase 1A uses a 2D U-Net residual regressor as the first backbone; pix2pixHD/GAN strengthening is a later ablation.
+The Phase 1A contribution concept: a synthesis approach that learns enhancement residuals with tumor-aware training signals while requiring only the pre-contrast slice at inference time. Phase 1A starts with a pix2pixHD-style ROI/SUB backbone; a 2D U-Net residual regressor is a later comparison path.
 _Avoid_: claiming test-time ground-truth mask conditioning or presenting the first Phase 1A backbone as a novel architecture.
 
 **Loss-only tumor-aware synthesis**:
@@ -61,7 +65,7 @@ An internal training target where the model predicts the enhancement residual `p
 _Avoid_: treating residual images as official submission outputs.
 
 **Synthetic post**:
-The final predicted peak-enhancement post-contrast slice in the required z-score float32 image space; this is the image consumed by downstream classification and segmentation evaluators. Phase 1A preserves native input size by padding internally to a U-Net-compatible multiple and cropping back before output.
+The final predicted peak-enhancement post-contrast slice in the required z-score float32 image space; this is the image consumed by downstream classification and segmentation evaluators. Phase 1A preserves native input size by padding internally when required and cropping back before output.
 _Avoid_: delta output, residual output, subtraction image, permanent resize output.
 
 **Fixed evaluation classifier**:
@@ -81,7 +85,7 @@ A single YAML config that records run, data, model, loss, training, evaluation, 
 _Avoid_: separating inference/evaluation contract from the training config in ways that make a run non-reproducible.
 
 **Submission smoke test**:
-A local or Grand Challenge try-out/debug execution that verifies container behavior and input/output compatibility without claiming model performance.
+A local or Grand Challenge try-out/debug execution that verifies container behavior and input/output compatibility without claiming model performance. Distinct from **Smoke-test submission**, the artifact being checked.
 _Avoid_: validation, baseline.
 
 ## Example dialogue

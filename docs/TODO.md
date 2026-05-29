@@ -7,3 +7,7 @@
 - [x] Continue Phase 1A grilling on minimal model/training config schema.
 - [x] Continue Phase 1A grilling on submission candidate promotion criteria.
 - [x] Write Phase 1A PRD draft.
+- [x] Request Codex review of `STRATEGY.md`, `CONTEXT.md`, and Phase 1A PRD.
+- [x] Request Claude review of `STRATEGY.md`, `CONTEXT.md`, and Phase 1A PRD.
+- [x] Collect review feedback.
+- [x] Ask point-by-point whether to apply each suggestion.

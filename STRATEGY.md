@@ -169,7 +169,8 @@ DCE-MRI는 유방암 진단·치료계획·모니터링에 핵심이지만, gado
 | 교훈 | 근거 | 챌린지 적용 |
 |---|---|---|
 | **Subtraction(잔차) 타깃** | Osuala'24, Ibarra'25, Pinetz'24 | post 직접합성 대신 `post−pre` 예측, 추론 시 pre 더해 복원 |
-| **Tumor-aware loss / mask-conditioning** | TSGAN'22, Ibarra'25 | Phase 1A는 GT mask를 loss에만 쓰는 mask-free inference로 제한하고, predicted-mask conditioning은 별도 ablation으로 분리 |
+| **Tumor-aware loss (Phase 1A)** | TSGAN'22, Ibarra'25 | GT tumor mask를 loss/auxiliary objective에만 쓰고, inference path는 pre-contrast only로 유지 |
+| **Mask-conditioning (later ablation)** | Ibarra'25, SPADE/conditional I2I 계열 | predicted-mask conditioning은 mask-free Phase 1A가 정체될 때 별도 ablation으로 분리 |
 | **Full-breast 학습** | Ibarra'25 | 단측 크롭 금지, 양측 함께 |
 | **FRD로 검증, FID 불신** | Konz'24 | 로컬에 `frd-score` 설치, 종양패치 radiomics 점검 |
 | **Perception–distortion 균형** | Blau&Michaeli'18, YODA arXiv:2505.02048 | regression-style/few-step 샘플링으로 곡선상 유리점 선택 |
@@ -334,14 +335,14 @@ cp -r submission-gan submission-my-model
 - 검증: Docker 빌드 성공 + `do_test_run.sh` 성공 + `pytest test_algorithm.py -v` 성공 + `output.mha` float32 synthetic post·동일 dims·메타데이터 보존.
 - GC 활성화 후 `Try-out Algorithm`으로 known `.mha`를 실행하고 Results/Logs에서 stdout/stderr, GPU, memory, runtime을 확인한다. Validation phase 제출 전 Debug phase로 한 번 더 확인한다.
 
-**Phase 1A — mask-free tumor-aware residual synthesis (저위험 메인, 1차 PRD 범위)**
-- MAMA-MIA 학습/평가 pipeline을 고정한 뒤 ① **subtraction target** ② **ROI weighted L1** ③ **mask-free inference proof**를 구현한다.
+**Phase 1A — pix2pixHD-first mask-free tumor-aware residual synthesis (저위험 메인, 1차 PRD 범위)**
+- MAMA-MIA 학습/평가 pipeline을 고정한 뒤 ① **pix2pixHD 계열 backbone** ② **subtraction target** ③ **ROI weighted L1** ④ **mask-free inference proof**를 구현한다.
 - GT mask는 training loss 계산에만 사용하고, model input/inference signature는 pre-contrast slice 하나로 유지한다.
-- Reference GAN weight init은 preprocessing/target mismatch가 섞일 수 있으므로 Phase 1A 이후 별도 ablation으로 비교한다.
+- `submission-gan` reference GAN submission은 컨테이너/정규화 브리징/가중치 staging 시작점으로 삼되, weight reuse는 preprocessing/target mismatch를 확인한 뒤 결정한다.
 - 검증: hold-out evaluation에서 ①② 초기 metric을 통과한 뒤, submission candidate 승격 전 `src/evaluation/models/` fixed evaluator까지 포함한 ①②③④ rank mean을 확인한다.
 
-**Phase 1B — pix2pixHD 계열 강화 / domain robustness ablation**
-- feature-matching, LPIPS-style perceptual loss, TSGAN식 종양 판별자/분할 분기(curriculum), augmentation/domain robustness는 Phase 1A 이후 개별 ablation으로 추가한다.
+**Phase 1B — 2D U-Net residual regressor 비교 / domain robustness ablation**
+- pix2pixHD-first pipeline이 재현된 뒤 2D U-Net residual regressor, LPIPS-style perceptual loss, TSGAN식 종양 판별자/분할 분기(curriculum), augmentation/domain robustness는 개별 ablation으로 추가한다.
 
 **Phase 2 — Latent Diffusion (고성능 도전, 2~3주, 시간 허용 시)**
 - **CC-Net 방식**: SD2.1 AE 동결 + ControlNet(pre-contrast 조건) + (subtraction 타깃). latent scale s≈0.1, grad value clip, batch≤8.
@@ -362,6 +363,7 @@ cp -r submission-gan submission-my-model
 
 ### 4.4 20GB 실현가능성 메모
 - **pix2pixHD 512²**: 단일 A4500에서 batch 1~4로 학습 가능(generator+multi-scale D). 충분.
+- **2D U-Net residual regressor 512²**: 단일 A4500에서 batch 8~16 수준까지 가능할 것으로 예상되며, pix2pixHD-first pipeline 재현 후 비교 후보로 둔다.
 - **Latent Diffusion**: AE 동결 시 학습 대상은 UNet+ControlNet. latent(예: 64²×4)에서 batch 8까지 가능. **이것이 20GB에서 diffusion을 쓰는 유일하게 현실적인 길.**
 - **혼합정밀(AMP)·gradient checkpointing·grad accumulation** 적극 사용.
 - 입력이 2D 단일슬라이스라 3D 부담 없음 → 메모리 매우 유리.
@@ -371,6 +373,8 @@ cp -r submission-gan submission-my-model
 ```
 L = λ_pix · L1(Δ_hat, Δ_gt)                      # residual pixel fidelity
   + λ_roi · L1_in_tumorROI(Δ_hat, Δ_gt)          # GT mask는 loss에만 사용
+  + λ_fm  · FeatureMatching(D)                   # pix2pixHD 안정화
+  + λ_adv · Adversarial(D)                       # 선명/사실성
 ```
 - 모델 입력과 inference path에는 mask를 넣지 않는다. 이 제약이 Phase 1A contribution인 **mask-free tumor-aware residual synthesis**의 핵심이다.
 - `post_hat = pre + Δ_hat`만 hold-out evaluation과 submission candidate 산출물로 저장한다. Δ 이미지는 debug artifact로만 둔다.
@@ -378,19 +382,18 @@ L = λ_pix · L1(Δ_hat, Δ_gt)                      # residual pixel fidelity
 **Phase 1B 이후 ablation 후보**
 ```
   + λ_perc · LPIPS(post_hat, post_gt)             # 지각(LPIPS 그룹)
-  + λ_fm  · FeatureMatching(D)                    # 블러 완화(pix2pixHD)
-  + λ_adv · Adversarial(global D + tumor D)       # 선명/사실성(TSGAN)
+  + λ_tumor_adv · Adversarial(tumor D)            # 종양 ROI 사실성(TSGAN)
   + λ_seg · Dice/BCE(분할분기, post_hat)          # ④ 다운스트림 정렬
 ```
 - λ는 hold-out evaluation의 staged score(초기 ①②, 승격 전 ①②③④ rank mean)를 기준으로 튜닝한다. MSE만 보고 키우지 말 것.
 
 ### 4.6 로컬 검증 전략
-- **two-tier hold-out split**: 최종 모델 선택은 center-held-out split으로 한다. 빠른 pipeline/debug 회귀 확인에는 별도의 small random patient debug hold-out split을 둘 수 있으나, submission candidate 승격 근거로 쓰지 않는다.
+- **two-tier hold-out split**: 최종 모델 선택은 center-held-out split으로 한다. center metadata가 충분하지 않으면 patient-grouped, source-stratified hold-out을 fallback model-selection split으로 기록한다. 빠른 pipeline/debug 회귀 확인에는 별도의 small random patient debug hold-out split을 둘 수 있으나, submission candidate 승격 근거로 쓰지 않는다.
 - **split manifest**: split은 `splits/<split_id>.json` 단일 JSON manifest로 관리한다. 각 case row는 `patient_id`, `split`, `source_id`, nullable `center_id`, `input`, `ground_truth`, `mask`를 포함한다. `center_id`는 split 결정용 local metadata일 뿐 파일명, `.mha` metadata, submission container, inference input에 넣지 않는다.
 - **Phase 1A experiment config**: 학습 run은 단일 YAML config로 재현한다. 최소 schema는 `run`, `data`, `model`, `loss`, `train`, `evaluation`, `submission` 섹션을 포함하고, `model.inference_inputs=[pre_contrast]`, `model.target=subtraction`, `submission.output_kind=synthetic_post`, `evaluation.models_dir=src/evaluation/models`, `evaluation.ensemble=true`, `evaluation.seg_fold=0`을 명시한다.
 - **메트릭**: MSE·LPIPS(torchmetrics alex, ±5σ 클립)·SSIM-tumor(skimage, data_range=10, win7)·**FRD(frd-score v1, 종양마스크)**를 **공식 구현 그대로** 재현한다. 엔트리포인트는 `src/evaluation/evaluate.py`, 구현은 `src/evaluation/evaluators/{image_metrics,roi_metrics,classification,segmentation}.py`, 경로 설정은 `MAMA_PREDICTIONS_DIR`, `MAMA_PRECONTRAST_DIR`, `MAMA_GT_DIR`, `MAMA_MASKS_DIR`, `MAMA_MODELS_DIR`, `MAMA_OUTPUT_DIR`를 사용한다.
 - **③④ fixed evaluation models**: README 구조대로 받은 `src/evaluation/models/`의 pretrained classification ensemble과 nnU-Net segmenter를 hold-out evaluation의 고정 평가자로 사용한다. 기본 config는 `MAMA_MODELS_DIR=src/evaluation/models`, `MAMA_ENSEMBLE=True`, `MAMA_SEG_FOLD=0`이다. fold sensitivity는 별도 분석으로 분리한다.
-- **staged model selection**: 모든 ablation은 ①②로 빠르게 필터링하고, shortlist는 ①②③④ 전체 evaluator를 실행한다. Validation phase 제출 후보로 승격하려면 같은 center-held-out split에서 4그룹 rank mean이 primary performance baseline보다 개선되어야 하며, no major group regression, 최소 2개 metric group 개선/유지, submission smoke test 통과를 함께 만족해야 한다.
+- **staged model selection**: 모든 ablation은 ①②로 빠르게 필터링하고, shortlist는 ①②③④ 전체 evaluator를 실행한다. Validation phase 제출 후보로 승격하려면 같은 center-held-out split에서 local proxy rank mean이 primary performance baseline보다 개선되어야 하며, 5% 초과 metric-group regression 없음, 최소 2개 metric group 개선/5% margin 내 유지, submission smoke test 통과를 함께 만족해야 한다. local proxy rank mean은 identity lower-bound benchmark, recorded reference GAN baseline, 같은 split의 모든 Phase 1A candidate로 고정한 local ranking table 안에서 계산한다.
 
 ### 4.7 실험 진행 모니터링 (Experiment Tracking)
 **기본 원칙**: 실험 추적은 **로컬 우선 MLflow + TensorBoard** 조합을 기본으로 한다. MRI 데이터·마스크·합성 출력·가중치는 보호/대용량 산출물이므로 외부 SaaS에 올리지 않는다. W&B 같은 외부 도구는 scalar-only/offline/private 모드 보조 옵션으로만 둔다. GC 제출 컨테이너는 런타임 네트워크가 없으므로 monitoring service에 의존하면 안 된다.
@@ -408,7 +411,8 @@ experiments/
 
 **run_id 규칙**
 `YYYYMMDD-HHMM_<model>_<target>_<split>_<shortgit>` 형식을 쓴다.
-예: `20260528-2130_pix2pixhd-sub_roi_split-center_a1b2c3d`.
+Primary 예: `20260528-2130_pix2pixhd-sub_roi_split-center_a1b2c3d`.
+후속 U-Net 비교 예: `20260528-2330_unet-residual_sub_roi_split-center_a1b2c3d`.
 
 **반드시 기록할 metadata**
 - 코드 상태: git commit, dirty 여부, 실행 명령, config 파일 경로와 resolved config.
@@ -449,8 +453,8 @@ tensorboard \
 **체크포인트 / submission candidate 승격 게이트**
 1. identity는 **lower-bound benchmark**, `submission-gan` 출력은 **primary performance baseline**으로 기록한다. 단, reference GAN 가중치 재현이 막히면 identity로 evaluation harness만 먼저 검증한다.
 2. 초기 ablation은 `val/mse`, `val/lpips`, `val/ssim_tumor`, `val/frd`가 primary performance baseline 대비 동시에 악화되지 않아야 한다.
-3. submission candidate 승격 전에는 `src/evaluation/models/` fixed evaluator를 포함한 ①②③④ 전체 metric과 4그룹 rank mean을 같은 center-held-out split에서 계산한다.
-4. Phase 1A submission candidate는 no major group regression, 최소 2개 metric group 개선/유지, primary performance baseline 대비 4그룹 rank mean 개선, submission smoke test 통과를 모두 만족해야 한다.
+3. submission candidate 승격 전에는 `src/evaluation/models/` fixed evaluator를 포함한 ①②③④ 전체 metric과 local proxy rank mean을 같은 center-held-out split에서 계산한다.
+4. Phase 1A submission candidate는 어떤 metric group도 primary performance baseline 대비 5%를 초과해 악화되지 않고, 최소 2개 metric group이 개선되거나 5% non-inferiority margin 안에 머물며, primary performance baseline 대비 local proxy rank mean 개선, submission smoke test 통과를 모두 만족해야 한다.
 5. top-k checkpoint는 같은 hold-out split에서 inference output을 저장하고 `metrics.json`, Phase 1A experiment config, inference config, model hash를 함께 묶는다.
 6. Validation phase 제출은 MLflow run에 `gc_validation_submission=true`, submission date, container version, leaderboard result를 태그로 남긴다.
 7. 동일 Validation phase 결과를 재현할 수 있는 training config와 inference config가 남아 있지 않으면 Test phase 후보로 승격하지 않는다.
@@ -486,7 +490,7 @@ tensorboard \
 
 ## 5. 권장 실행 계획 (내부 가속 일정 기준)
 
-아래 일정은 챌린지 공식 마감표가 아니라 **우리 내부 실행 속도 기준**이다. 2026-05-28 현재 Validation phase가 이미 열려 있으므로, Test phase를 기다리지 말고 빠르게 submission smoke test·hold-out evaluation·submission candidate를 확보한다. 원칙은 "먼저 end-to-end로 살아 있는 제출 경로를 만들고, 이후 성능 개선을 짧은 cycle로 반복"이다.
+아래 일정은 챌린지 공식 마감표가 아니라 **우리 내부 실행 속도 기준**이다. planning update date 기준 Validation phase가 이미 열려 있으므로, Test phase를 기다리지 말고 빠르게 submission smoke test·hold-out evaluation·submission candidate를 확보한다. 원칙은 "먼저 end-to-end로 살아 있는 제출 경로를 만들고, 이후 성능 개선을 짧은 cycle로 반복"이다.
 
 | 시점 | 작업 | 검증 게이트 |
 |---|---|---|
@@ -494,7 +498,7 @@ tensorboard \
 | D1~D2 | GC Try-out/Debug로 identity 제출 경로 검증, `submission-gan` 가중치 staging 및 로컬 추론 재현 | GC logs에서 input/output slug, GPU/memory/runtime 확인; output `.mha` float32·metadata 보존 |
 | D2~D4 | two-tier hold-out split manifest, ①② 평가 harness, fixed evaluation models config, MLflow/TensorBoard run 기록 체계 구축 | lower-bound benchmark와 primary performance baseline에 대한 `metrics.json` 생성, run_id/config/split/checkpoint 기록 |
 | D4~D7 | **Phase 1A**: mask-free tumor-aware residual synthesis 구현/학습(`subtraction target + ROI weighted L1 + mask-free inference proof`) | ①②에서 primary performance baseline 대비 동시 악화 없음, inference signature가 pre-contrast only임을 테스트 |
-| D7~D10 | shortlist checkpoint 전체 ①②③④ 평가 및 submission candidate Docker화 | fixed evaluation models 기반 4그룹 rank mean 개선 + 컨테이너 smoke test 통과 시 Validation phase 제출 후보 |
+| D7~D10 | shortlist checkpoint 전체 ①②③④ 평가 및 submission candidate Docker화 | fixed evaluation models 기반 local proxy rank mean 개선 + 컨테이너 smoke test 통과 시 Validation phase 제출 후보 |
 | D10~D14 | **Phase 1B 강화**: feature matching/perceptual/tumor discriminator/segmentation branch 또는 augmentation/domain robustness ablation | Validation phase feedback과 hold-out evaluation이 같은 방향인지 확인, best checkpoint 승격 |
 | D14 | **Phase 2 go/no-go**: latent diffusion 착수 여부 결정 | Phase 1이 정체했고 GPU/시간 여유가 있을 때만 진행; 아니면 pix2pixHD 계열 안정화 집중 |
 | 매일 | 실험 결과 정리, 실패한 run 폐기 기준 적용, 다음 ablation 1~2개만 선정 | MLflow metric table 업데이트, Validation phase 제출 잔여 횟수 확인 |

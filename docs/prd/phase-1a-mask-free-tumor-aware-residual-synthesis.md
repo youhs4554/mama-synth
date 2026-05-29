@@ -1,5 +1,10 @@
 # PRD: Phase 1A — Mask-Free Tumor-Aware Residual Synthesis
 
+## Reference Documents
+
+- [CONTEXT.md](../../CONTEXT.md) defines canonical project terminology used by this PRD.
+- [STRATEGY.md](../../STRATEGY.md) defines the challenge strategy, roadmap, metric tradeoffs, and submission gates that inform this PRD.
+
 ## Problem Statement
 
 MAMA-SYNTH requires generating a synthetic peak-enhancement post-contrast breast DCE-MRI slice from a single pre-contrast slice. The challenge rewards balanced performance across image fidelity, tumor ROI realism, downstream classification utility, and downstream segmentation utility. A model that optimizes only pixel similarity can blur tumor enhancement, while mask-conditioned approaches from recent literature can be difficult to use under the Grand Challenge inference contract because the test-time input does not include a tumor mask.

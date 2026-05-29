@@ -35,22 +35,24 @@ For substantial features or experiment infrastructure, use this sequence: `grill
 
 ## Build, Test, and Development Commands
 
+Use `uv` for Python dependency management and command execution. Prefer `uv run ...` for Python, pytest, preprocessing, evaluation, and training commands; do not call bare `python`, `pip`, or `pytest` unless `uv` is unavailable and the fallback is stated explicitly.
+
 Install runtime dependencies from the repository root:
 
 ```bash
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 ```
 
 Run the Python test suite:
 
 ```bash
-PYTHONPATH=src/evaluation pytest src/evaluation/tests src/preprocessing/test_preprocess.py -v
+PYTHONPATH=src/evaluation uv run pytest src/evaluation/tests src/preprocessing/test_preprocess.py -v
 ```
 
 Run local evaluation after setting the required `MAMA_*` paths:
 
 ```bash
-python src/evaluation/evaluate.py
+uv run python src/evaluation/evaluate.py
 ```
 
 Build and smoke-test the identity submission container:
@@ -77,6 +79,8 @@ Tests use `pytest`. Name test files `test_*.py`, group related checks in `Test*`
 Use a local-first experiment tracker for model training and ablation runs. The default recommendation is MLflow with a local file backend under `experiments/mlruns`, optionally paired with TensorBoard event files under `experiments/tensorboard` for dense scalar/image inspection. These directories are generated artifacts and must stay out of commits, along with checkpoints, predictions, and exported containers.
 
 Each training run should log enough context to reproduce the result: git commit, command line, config file path and resolved hyperparameters, dataset split identifier, preprocessing statistics, model architecture variant, random seed, checkpoint path, Docker/submission template version if relevant, and hardware/runtime metadata. Log validation metrics using the challenge grouping vocabulary: image fidelity (`mse`, `lpips`), tumor ROI realism (`ssim_tumor`, `frd`), classification proxies (`auroc_contrast`, `auroc_tumor_roi`), segmentation proxies (`dice`, `hd95`), and the proxy rank-average used for checkpoint selection.
+
+Run long-running work such as model training, full-dataset preprocessing, or full evaluator sweeps in the background with durable logs under `experiments/` or another ignored output directory. Start a lightweight watchdog/monitor script alongside the job that tails logs and watches metrics/checkpoints; report back when meaningful intermediate results appear, such as first validation metrics, best-checkpoint improvement, metric regression, NaN/loss explosion, OOM, stalled progress, or job completion/failure. Include the background PID/log path and the watchdog command in progress updates.
 
 Do not upload protected MRI slices, masks, generated challenge outputs, or model weights to cloud experiment trackers. If an external service such as Weights & Biases is used, run it in offline/private mode and log only scalar metrics, plots derived from aggregate metrics, sanitized configuration, and small non-identifying debug images when explicitly approved. Grand Challenge inference containers must not depend on a monitoring service because runtime network access is unavailable.
 

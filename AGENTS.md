@@ -82,7 +82,7 @@ Do not upload protected MRI slices, masks, generated challenge outputs, or model
 
 ## Communication Guidelines
 
-When a response ends in a ready/waiting state, provide a short "Suggested next step" so the user is not left wondering what to do next. Keep it concise and practical: one recommended action, plus up to two alternatives only when useful. For long-running workflows such as `/goal`, include the next concrete workflow step and any required input or validation command. If blocked, state the smallest unblock action instead.
+Every final response that leaves the user with a decision, handoff, completed task, blocked task, or waiting state must end with a clearly labeled `Suggested next step:` line. Do not omit this line just because the change is small. Keep it concise and practical: one recommended action, plus up to two alternatives only when useful. For long-running workflows such as `/goal`, include the next concrete workflow step and any required input or validation command. If blocked, state the smallest unblock action instead.
 
 ## Commit & Pull Request Guidelines
 

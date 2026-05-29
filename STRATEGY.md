@@ -85,6 +85,7 @@ DCE-MRI는 유방암 진단·치료계획·모니터링에 핵심이지만, gado
 | 분자아형 | - | Luminal 86% 多 | Luminal 37% / TN 30% (다양) |
 
 - **핵심 함의**: 학습은 미국 다기관, 테스트는 **네덜란드·아르헨티나 외부기관** → **도메인 시프트(스캐너·프로토콜·인구·자기장)에 대한 일반화**가 승부처. 테스트 분포(3T Siemens / 1.5T GE, 지방억제, 축상)에 맞춘 강건성이 중요.
+- **로컬 마운트 실측(2026-05-29)**: repo `datasets` symlink → `../MAMASYNTH2026_dataset`는 **MAMA-MIA 학습셋 원본**이다(`images/<id>/<id>_0000.nii.gz` 다중 phase 3D, `segmentations/{expert,automatic}/<id>.nii.gz`, `patient_info_files/<id>.json`, `train_test_splits.csv`). **전처리된 2D `.mha`(`mha/{input,ground_truth,mask}`)는 동봉돼 있지 않으므로 `preprocess.py`로 직접 생성한다.** 로컬 `train_test_splits.csv`(`train_split` 1,200 / `test_split` 306; DUKE·ISPY1·ISPY2·NACT)는 위 1,506 학습셋을 나눈 **내부 split**이며, 표의 챌린지 숨김 Test A(Radboud)/Test B(Fleming)와 무관하다 — 로컬 `test_split`을 챌린지 Test phase로 오인하지 말 것.
 - **데이터/모델 정책**: 챌린지 데이터 + **공개 데이터셋/공개 사전학습 모델만** 허용(private 금지). 공개 리소스는 **Validation phase 시작 전인 2026-05-07 23:59 CET 이전**에 접근 가능해야 한다. NIH CADR 사용 금지(EO 14117 / 28 CFR 202 준수). 외부 데이터·pretrained weight·오픈소스 구현 사용 시 문서화 필수. 평가 파이프라인 점수만 직접 극대화하는 metric gaming은 실격 사유이며, top-3는 전체 학습 코드 제출 요구 가능.
   - 활용 가능 공개 데이터 예: **Duke-Breast-Cancer-MRI**(주최자 reference GAN 계열이 이걸로 학습), 기타 공개 유방 DCE-MRI.
 
@@ -231,6 +232,8 @@ DCE-MRI는 유방암 진단·치료계획·모니터링에 핵심이지만, gado
 
 ### 3.6 로컬 데이터셋 경로 운영
 원본 MRI 데이터셋은 저장소 안에 두지 않는다. 실제 데이터 루트는 사용자가 로컬 디스크/외장 SSD/서버 마운트 상황에 맞춰 나중에 결정하고, 이 저장소에는 `datasets` 심볼릭 링크만 둔다.
+
+**실제 마운트 레이아웃(2026-05-29 실측)**: 현재 `datasets`는 `../MAMASYNTH2026_dataset`(MAMA-MIA 학습셋 원본)를 가리키며, 아래 "권장 개념 구조"의 `raw/`·`processed/` 중첩이 아니라 **평면 레이아웃**(`images/`, `segmentations/{expert,automatic}/`, `patient_info_files/`, `train_test_splits.csv` 등)이다. 전처리된 2D `.mha`는 미동봉이므로 `preprocess.py`로 직접 생성하고, Phase 1A 디버그 산출물은 ignored `datasets/phase1a/<split_id>/mha/{input,ground_truth,mask}/` 아래에 둔다. split용 source/center metadata는 `patient_info_files/<id>.json`에서 파생한다(§4.6). 일부 샌드박스에서 `Path('datasets').exists()`가 false였으므로, 데이터 점검은 **repo 루트에서 `find -L` 등 symlink-aware**하게 실행한다.
 
 권장 개념 구조:
 ```bash
@@ -388,8 +391,9 @@ L = λ_pix · L1(Δ_hat, Δ_gt)                      # residual pixel fidelity
 - λ는 hold-out evaluation의 staged score(초기 ①②, 승격 전 ①②③④ rank mean)를 기준으로 튜닝한다. MSE만 보고 키우지 말 것.
 
 ### 4.6 로컬 검증 전략
-- **two-tier hold-out split**: 최종 모델 선택은 center-held-out split으로 한다. center metadata가 충분하지 않으면 patient-grouped, source-stratified hold-out을 fallback model-selection split으로 기록한다. 빠른 pipeline/debug 회귀 확인에는 별도의 small random patient debug hold-out split을 둘 수 있으나, submission candidate 승격 근거로 쓰지 않는다.
-- **split manifest**: split은 `splits/<split_id>.json` 단일 JSON manifest로 관리한다. 각 case row는 `patient_id`, `split`, `source_id`, nullable `center_id`, `input`, `ground_truth`, `mask`를 포함한다. `center_id`는 split 결정용 local metadata일 뿐 파일명, `.mha` metadata, submission container, inference input에 넣지 않는다.
+- **two-tier hold-out split**: 최종 모델 선택은 center-held-out split으로 한다. center metadata가 충분하지 않으면 patient-grouped, source-stratified hold-out을 fallback model-selection split으로 기록한다. 빠른 pipeline/debug 회귀 확인에는 별도의 small random patient debug hold-out split을 둘 수 있으나, submission candidate 승격 근거로 쓰지 않는다. (실측: `center_id`는 `imaging_data.site`로 대개 채울 수 있으나 MAMA-MIA 학습셋에선 site가 source dataset과 거의 일치(예: DUKE→DUKE)하므로, 로컬 center-held-out은 진짜 외부기관 시프트(Test A/B)의 **근사**일 뿐이다.)
+- **split manifest**: split은 `splits/<split_id>.json` 단일 JSON manifest로 관리한다. 각 case row는 `patient_id`, `split`, `source_id`, nullable `center_id`, `input`, `ground_truth`, `mask`를 포함한다. `center_id`는 split 결정용 local metadata일 뿐 파일명, `.mha` metadata, submission container, inference input에 넣지 않는다. `source_id`/`center_id`는 `patient_info_files/<id>.json`의 `imaging_data.dataset`/`imaging_data.site`에서 파생한다.
+- **debug split same-shape 제약(현재 구현)**: 현재 Phase 1A 최소 train/evaluate 루프(`src/phase1a/run.py`)는 case별 residual target을 `np.stack`으로 모아 평균하므로 split 내 2D 슬라이스 크기가 **동일**해야 한다(혼합 shape, 예: 448²·512²·320² 혼용 시 `ValueError: all input arrays must have the same shape`). 따라서 debug hold-out split은 같은 크기(예: 512²) 케이스로 구성한다. 이는 **debug split 선택상의 현재 구현 제약**이며 최종 모델 선택 설계 가정이 아니다 — 모델 contract는 native size를 내부 pad/crop으로 보존한다(§4.5, PRD). 후속 issue에서 trainer가 pad/crop batching을 지원하면 이 제약은 사라진다.
 - **Phase 1A experiment config**: 학습 run은 단일 YAML config로 재현한다. 최소 schema는 `run`, `data`, `model`, `loss`, `train`, `evaluation`, `submission` 섹션을 포함하고, `model.inference_inputs=[pre_contrast]`, `model.target=subtraction`, `submission.output_kind=synthetic_post`, `evaluation.models_dir=src/evaluation/models`, `evaluation.ensemble=true`, `evaluation.seg_fold=0`을 명시한다.
 - **메트릭**: MSE·LPIPS(torchmetrics alex, ±5σ 클립)·SSIM-tumor(skimage, data_range=10, win7)·**FRD(frd-score v1, 종양마스크)**를 **공식 구현 그대로** 재현한다. 엔트리포인트는 `src/evaluation/evaluate.py`, 구현은 `src/evaluation/evaluators/{image_metrics,roi_metrics,classification,segmentation}.py`, 경로 설정은 `MAMA_PREDICTIONS_DIR`, `MAMA_PRECONTRAST_DIR`, `MAMA_GT_DIR`, `MAMA_MASKS_DIR`, `MAMA_MODELS_DIR`, `MAMA_OUTPUT_DIR`를 사용한다.
 - **③④ fixed evaluation models**: README 구조대로 받은 `src/evaluation/models/`의 pretrained classification ensemble과 nnU-Net segmenter를 hold-out evaluation의 고정 평가자로 사용한다. 기본 config는 `MAMA_MODELS_DIR=src/evaluation/models`, `MAMA_ENSEMBLE=True`, `MAMA_SEG_FOLD=0`이다. fold sensitivity는 별도 분석으로 분리한다.

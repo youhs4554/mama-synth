@@ -1,5 +1,6 @@
 # Defaults mama-synth
 datasets
+experiments/
 .pi/
 src/evaluation/models/segmentation/fold_*/validation/
 src/evaluation/models/segmentation/fold_*/debug.json

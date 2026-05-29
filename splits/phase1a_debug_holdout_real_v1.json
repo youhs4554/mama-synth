@@ -1,0 +1,84 @@
+{
+  "cases": [
+    {
+      "case_id": "DUKE_002",
+      "center_id": "DUKE",
+      "membership": "train",
+      "paths": {
+        "ground_truth_post": "../datasets/phase1a/debug_holdout_real_v1/mha/ground_truth/DUKE_002.mha",
+        "pre_contrast": "../datasets/phase1a/debug_holdout_real_v1/mha/input/DUKE_002.mha",
+        "tumor_mask": "../datasets/phase1a/debug_holdout_real_v1/mha/mask/DUKE_002.mha"
+      },
+      "source_id": "DUKE"
+    },
+    {
+      "case_id": "DUKE_009",
+      "center_id": "DUKE",
+      "membership": "train",
+      "paths": {
+        "ground_truth_post": "../datasets/phase1a/debug_holdout_real_v1/mha/ground_truth/DUKE_009.mha",
+        "pre_contrast": "../datasets/phase1a/debug_holdout_real_v1/mha/input/DUKE_009.mha",
+        "tumor_mask": "../datasets/phase1a/debug_holdout_real_v1/mha/mask/DUKE_009.mha"
+      },
+      "source_id": "DUKE"
+    },
+    {
+      "case_id": "DUKE_010",
+      "center_id": "DUKE",
+      "membership": "train",
+      "paths": {
+        "ground_truth_post": "../datasets/phase1a/debug_holdout_real_v1/mha/ground_truth/DUKE_010.mha",
+        "pre_contrast": "../datasets/phase1a/debug_holdout_real_v1/mha/input/DUKE_010.mha",
+        "tumor_mask": "../datasets/phase1a/debug_holdout_real_v1/mha/mask/DUKE_010.mha"
+      },
+      "source_id": "DUKE"
+    },
+    {
+      "case_id": "DUKE_012",
+      "center_id": "DUKE",
+      "membership": "train",
+      "paths": {
+        "ground_truth_post": "../datasets/phase1a/debug_holdout_real_v1/mha/ground_truth/DUKE_012.mha",
+        "pre_contrast": "../datasets/phase1a/debug_holdout_real_v1/mha/input/DUKE_012.mha",
+        "tumor_mask": "../datasets/phase1a/debug_holdout_real_v1/mha/mask/DUKE_012.mha"
+      },
+      "source_id": "DUKE"
+    },
+    {
+      "case_id": "DUKE_021",
+      "center_id": "DUKE",
+      "membership": "holdout",
+      "paths": {
+        "ground_truth_post": "../datasets/phase1a/debug_holdout_real_v1/mha/ground_truth/DUKE_021.mha",
+        "pre_contrast": "../datasets/phase1a/debug_holdout_real_v1/mha/input/DUKE_021.mha",
+        "tumor_mask": "../datasets/phase1a/debug_holdout_real_v1/mha/mask/DUKE_021.mha"
+      },
+      "source_id": "DUKE"
+    },
+    {
+      "case_id": "DUKE_055",
+      "center_id": "DUKE",
+      "membership": "holdout",
+      "paths": {
+        "ground_truth_post": "../datasets/phase1a/debug_holdout_real_v1/mha/ground_truth/DUKE_055.mha",
+        "pre_contrast": "../datasets/phase1a/debug_holdout_real_v1/mha/input/DUKE_055.mha",
+        "tumor_mask": "../datasets/phase1a/debug_holdout_real_v1/mha/mask/DUKE_055.mha"
+      },
+      "source_id": "DUKE"
+    }
+  ],
+  "description": "Small same-shape 512x512 real-data debug hold-out split generated from datasets/train_test_splits.csv.",
+  "schema_version": "phase1a.split_manifest.v1",
+  "selection": {
+    "dataset_root": "datasets",
+    "holdout_count": 2,
+    "holdout_source_column": "test_split",
+    "normalisation_stats": "src/preprocessing/training_pre_stats.json",
+    "segmentation_source": "datasets/segmentations/expert",
+    "shape_constraint": "512x512 native 2D slices for current debug trainer np.stack constraint",
+    "source_split_file": "datasets/train_test_splits.csv",
+    "train_count": 4,
+    "train_source_column": "train_split"
+  },
+  "split_intent": "debug_holdout"
+}

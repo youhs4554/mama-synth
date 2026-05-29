@@ -113,5 +113,20 @@
 - [x] Check repository state and Phase 1A runnable surface.
 - [x] Check for local dataset, split manifest, experiment outputs, and fixed evaluator model directories.
 - [x] Add or identify the smallest command for running Phase 1A on a real split.
-- [ ] Run Phase 1A on real train/hold-out data.
+- [x] Run Phase 1A on real train/hold-out data.
 - [ ] Produce baseline metric table for Phase 1A before Phase 1B ablations.
+
+## Active task: Phase 1A real datasets split/config
+
+- [x] Commit Phase 1A CLI changes.
+- [x] Create a small real-data debug split from `datasets/train_test_splits.csv`.
+- [x] Generate local 2D MHA artifacts under ignored `datasets/` paths for the split.
+- [x] Write Phase 1A split manifest and YAML config.
+- [x] Validate the generated manifest/config with the Phase 1A CLI.
+
+## Active task: Claude design-doc sync after data munging
+
+- [x] Delegate design-doc drift review/update to the running Claude agent via `herdr`.
+- [x] Review Claude's changes and verify repository docs still match the real-data debug workflow.
+- [x] Run focused validation after documentation/config updates.
+- [x] Commit the resulting changes.

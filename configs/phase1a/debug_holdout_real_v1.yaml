@@ -1,0 +1,30 @@
+run:
+  name: phase1a-debug-holdout-real-v1
+  seed: 7
+  output_dir: experiments/phase1a/debug_holdout_real_v1
+
+data:
+  split_manifest: splits/phase1a_debug_holdout_real_v1.json
+
+model:
+  inference_inputs:
+    - pre_contrast
+  target: residual
+
+loss:
+  roi_weighting:
+    mode: tumor_mask_only
+    context:
+      enabled: false
+
+train:
+  max_epochs: 1
+  batch_size: 1
+
+evaluation:
+  mode: fixed_downstream_evaluators
+  classifier_ensemble: true
+  segmentation_fold: 0
+
+submission:
+  output: synthetic_post

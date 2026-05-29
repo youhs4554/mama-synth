@@ -232,7 +232,7 @@ def load_cases_gc(
         pk = job["pk"]
 
         # --- Locate the prediction .mha --------------------------------
-        pred_dir = input_dir / pk / "output" / f"images/{PREDICTION_SLUG}"
+        pred_dir = _gc_prediction_dir(input_dir, pk, job)
         pred_files = glob(str(pred_dir / "*.mha"))
         if not pred_files:
             logger.warning(
@@ -421,11 +421,26 @@ def load_cases_local(
     return cases
 
 
+def _gc_prediction_dir(input_dir: Path, pk: str, job: dict) -> Path:
+    """Return the prediction directory declared by GC metadata or the configured slug."""
+    for output in job.get("outputs", []):
+        interface = output.get("interface", {})
+        relative_path = interface.get("relative_path")
+        if relative_path:
+            return input_dir / pk / "output" / relative_path
+        if interface.get("slug") == PREDICTION_SLUG:
+            return input_dir / pk / "output" / "images" / PREDICTION_SLUG
+    return input_dir / pk / "output" / "images" / PREDICTION_SLUG
+
+
 def _gc_input_image_name(job: dict) -> Optional[str]:
     """Extract the original input image filename from a GC job."""
-    for inp in job.get("inputs", []):
+    inputs = job.get("inputs", [])
+    for inp in inputs:
         if inp.get("interface", {}).get("slug") == INPUT_SLUG:
             return inp.get("image", {}).get("name")
+    if len(inputs) == 1:
+        return inputs[0].get("image", {}).get("name")
     return None
 
 

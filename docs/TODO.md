@@ -11,3 +11,99 @@
 - [x] Request Claude review of `STRATEGY.md`, `CONTEXT.md`, and Phase 1A PRD.
 - [x] Collect review feedback.
 - [x] Ask point-by-point whether to apply each suggestion.
+- [x] Read Phase 1A PRD for issue breakdown.
+- [x] Check glossary/strategy/repository context for domain vocabulary.
+- [x] Get user approval on Phase 1A tracer-bullet issue breakdown.
+- [x] Save approved issue drafts because no issue tracker CLI is available.
+- [x] Install/configure `gh` CLI and enable GitHub Issues for the repository.
+- [x] Publish approved issues to the issue tracker when tooling is available.
+
+## Active goal: Phase 1A TDD implementation
+
+- [x] Issue #1: Create split manifest contract and validator.
+  - [x] RED: manifest validates deterministic train/hold-out fake cases.
+  - [x] GREEN: minimal split manifest public interface passes tracer test.
+  - [x] Add nullable center metadata and required-field/path validation tests.
+  - [x] Add local-only split metadata/submission input contract test.
+  - [x] Add debug vs model-selection split distinction test.
+  - [x] Run targeted Issue #1 tests: `PYTHONPATH=src pytest src/phase1a/tests/test_split_manifest.py -q`.
+- [x] Issue #2: Create single Phase 1A experiment config contract.
+  - [x] RED: minimal valid config declares required sections.
+  - [x] GREEN: minimal config validator passes tracer test.
+  - [x] Add pre-contrast-only inference and synthetic post output validation tests.
+  - [x] Add residual target validation test.
+  - [x] Add fixed evaluator/sensitivity-analysis validation tests.
+  - [x] Add ROI weighting defaults test.
+  - [x] Run targeted Issue #2 tests: `PYTHONPATH=src pytest src/phase1a/tests -q`.
+- [x] Issue #3: Load manifest cases into a residual-synthesis dataset.
+  - [x] RED: dataset loads deterministic fake train cases from valid split manifest.
+  - [x] GREEN: minimal residual synthesis dataset passes tracer test.
+  - [x] Add sample fields and residual `post - pre` test.
+  - [x] Add pre-contrast-only inference sample test.
+  - [x] Add matching case identity validation test.
+  - [x] Run targeted Issue #3 tests: `PYTHONPATH=src pytest src/phase1a/tests -q`.
+- [x] Issue #4: Prove mask-free native-size synthetic post inference.
+  - [x] RED: inference public API accepts pre-contrast only.
+  - [x] GREEN: minimal residual inference contract passes tracer test.
+  - [x] Add synthetic post = pre + predicted residual test.
+  - [x] Add native-size padding/crop-back test.
+  - [x] Add evaluation mask shape match test.
+  - [x] Run targeted Issue #4 tests: `PYTHONPATH=src pytest src/phase1a/tests -q`.
+- [x] Issue #5: Add Phase 1A residual and tumor ROI weighted losses.
+  - [x] RED: residual L1 returns expected deterministic value.
+  - [x] GREEN: minimal residual L1 passes tracer test.
+  - [x] Add tumor ROI weighted residual L1 deterministic mask test.
+  - [x] Add mask-only-training-path / no inference conditioning test.
+  - [x] Add empty-mask/no-tumor behavior test.
+  - [x] Run targeted Issue #5 tests: `PYTHONPATH=src pytest src/phase1a/tests -q`.
+- [x] Issue #6: Run a minimal train/evaluate loop.
+  - [x] RED: smoke-scale run trains/evaluates on deterministic fake data.
+  - [x] GREEN: minimal train/evaluate runner passes tracer test.
+  - [x] Add run record config/split/seed/checkpoint/inference settings test.
+  - [x] Add synthetic post prediction-not-residual test.
+  - [x] Add pre-contrast-only after training and ablations-out-of-scope tests.
+  - [x] Run targeted Issue #6 tests: `PYTHONPATH=src pytest src/phase1a/tests -q`.
+- [x] Issue #7: Record identity lower-bound and reference GAN baseline evidence.
+  - [x] RED: identity evidence is lower-bound, not primary performance baseline.
+  - [x] GREEN: minimal baseline evidence validator passes tracer test.
+  - [x] Add reproducible reference GAN required-fields test.
+  - [x] Add same-split local ranking table test.
+  - [x] Add promotion-deferred and human-approved alternative baseline tests.
+  - [x] Run targeted Issue #7 tests: `PYTHONPATH=src pytest src/phase1a/tests -q`.
+- [x] Issue #8: Add staged hold-out evaluation runner.
+  - [x] RED: early stage runs cheap metric groups only.
+  - [x] GREEN: minimal staged evaluation runner passes tracer test.
+  - [x] Add shortlist/full metric groups and fixed evaluator settings tests.
+  - [x] Add changed fixed evaluator rejection test.
+  - [x] Add stable metric-summary output test.
+  - [x] Run targeted Issue #8 tests: `PYTHONPATH=src pytest src/phase1a/tests -q`.
+- [x] Issue #9: Implement promotion gate and audit bundle.
+  - [x] RED: toy metric summary candidate accepted deterministically.
+  - [x] GREEN: minimal promotion gate passes tracer test.
+  - [x] Add >5% metric group worsening rejection test.
+  - [x] Add two-group non-inferiority and local proxy rank mean tests.
+  - [x] Add audit bundle metrics/config/inference/model hash test.
+  - [x] Run targeted Issue #9 tests: `PYTHONPATH=src pytest src/phase1a/tests -q`.
+- [x] Issue #10: Package checkpoint behind submission smoke tests.
+  - [x] RED: submission-style inference consumes pre-contrast only.
+  - [x] GREEN: minimal submission inference passes tracer test.
+  - [x] Add readable native-size float32/finite output test.
+  - [x] Add soft z-score and metadata preservation tests.
+  - [x] Add submission-ready requires passing smoke test.
+  - [x] Run targeted Issue #10 tests: `PYTHONPATH=src pytest src/phase1a/tests -q`.
+
+## Completion audit fixes
+
+- [x] Replace submission-only NPZ assumption with challenge-style `.mha` I/O support via SimpleITK when available.
+- [x] Add `.mha` submission smoke test preserving spacing, origin, direction, and metadata keys.
+- [x] Make the minimal train/evaluate loop use residual L1 and tumor ROI weighted residual L1 and record loss history.
+- [x] Write `.mha` predictions for `.mha` manifest cases while preserving reference metadata.
+- [x] Strengthen staged evaluator comparison to reject candidate-specific fixed evaluator setting changes.
+- [x] Re-run Phase 1A tests after audit fixes: `PYTHONPATH=src pytest src/phase1a/tests -q`.
+- [x] Align GC predictions.json loading with declared `relative_path` while retaining configured slug fallback.
+- [x] Run broader repo validation: `PYTHONPATH=src:src/evaluation pytest src/phase1a/tests src/evaluation/tests src/preprocessing/test_preprocess.py -q`.
+- [x] Enforce promotion-gate audit bundle requirements: metrics, config, inference settings, and model hash must be present before acceptance.
+- [x] Enforce reproducible reference GAN as the primary performance baseline.
+- [x] Re-run broader validation after promotion/baseline audit fixes: `PYTHONPATH=src:src/evaluation pytest src/phase1a/tests src/evaluation/tests src/preprocessing/test_preprocess.py -q`.
+- [x] Enforce all four promotion metric groups before candidate acceptance: image fidelity, tumor ROI realism, classification utility, and segmentation utility.
+- [x] Re-run broader validation after four-metric promotion gate fix: `PYTHONPATH=src:src/evaluation pytest src/phase1a/tests src/evaluation/tests src/preprocessing/test_preprocess.py -q`.

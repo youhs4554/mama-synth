@@ -1,0 +1,51 @@
+run:
+  name: phase1b-unet-residual-smoke-center-heldout-nact-v1
+  seed: 7
+  output_dir: experiments/phase1b/center_heldout_v1/unet_residual_smoke_v1
+
+data:
+  split_manifest: splits/phase1b_center_heldout_nact_v1.json
+
+model:
+  inference_inputs:
+    - pre_contrast
+  target: residual
+  base_channels: 4
+
+loss:
+  roi_weighting:
+    mode: tumor_mask_only
+    context:
+      enabled: false
+
+train:
+  max_epochs: 1
+  batch_size: 1
+
+evaluation:
+  mode: fixed_downstream_evaluators
+  classifier_ensemble: true
+  segmentation_fold: 0
+
+submission:
+  output: synthetic_post
+
+ablation:
+  model_family: unet_residual_regressor
+  loss_terms:
+    - residual_l1
+    - tumor_roi_weighted_residual_l1
+  augmentation_policy: disabled
+  selection_stage: early
+
+run_metadata:
+  config: configs/phase1b/unet_residual_smoke_center_heldout_nact_v1.yaml
+  base_config: configs/phase1b/unet_residual_smoke_v1.yaml
+  split: splits/phase1b_center_heldout_nact_v1.json
+  model_variant: unet_residual_regressor
+  loss_weights:
+    tumor: 3.0
+  augmentation_settings:
+    enabled: false
+  checkpoint_hash: pending-center-heldout-run
+  metric_summary: {}

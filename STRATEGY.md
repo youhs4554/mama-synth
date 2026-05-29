@@ -345,7 +345,9 @@ cp -r submission-gan submission-my-model
 - 검증: hold-out evaluation에서 ①② 초기 metric을 통과한 뒤, submission candidate 승격 전 `src/evaluation/models/` fixed evaluator까지 포함한 ①②③④ rank mean을 확인한다.
 
 **Phase 1B — 2D U-Net residual regressor 비교 / domain robustness ablation**
-- pix2pixHD-first pipeline이 재현된 뒤 2D U-Net residual regressor, LPIPS-style perceptual loss, TSGAN식 종양 판별자/분할 분기(curriculum), augmentation/domain robustness는 개별 ablation으로 추가한다.
+- 현재 구현 상태에서는 Phase 1A의 공통 계약(split manifest, residual target, mask-free inference, synthetic post output, fixed evaluator gate)이 재현 가능하고 reference GAN은 외부 `30_net_G.pth` staging 없이는 blocked이므로, 2D U-Net residual regressor가 먼저 실행되는 저위험 비교 경로가 되었다.
+- 다음 실험 순서는 full eligible local dataset을 명시한 split/config를 만들고 baseline U-Net full-dataset 학습/추론을 먼저 안정화한 뒤, 동일 계약 안에서 isolated ablation을 추가하는 것이다.
+- 우선순위: ① full-dataset/base16 U-Net 확인 ② tumor ROI loss-weight sweep ③ scanner/protocol intensity augmentation 재검증 ④ LPIPS/perceptual 또는 pix2pixHD-style feature matching ⑤ auxiliary segmentation branch 또는 tumor ROI discriminator. predicted-mask conditioning처럼 inference contract를 바꾸는 접근은 별도 승인/PRD 전에는 진행하지 않는다.
 
 **Phase 2 — Latent Diffusion (고성능 도전, 2~3주, 시간 허용 시)**
 - **CC-Net 방식**: SD2.1 AE 동결 + ControlNet(pre-contrast 조건) + (subtraction 타깃). latent scale s≈0.1, grad value clip, batch≤8.
@@ -366,7 +368,7 @@ cp -r submission-gan submission-my-model
 
 ### 4.4 20GB 실현가능성 메모
 - **pix2pixHD 512²**: 단일 A4500에서 batch 1~4로 학습 가능(generator+multi-scale D). 충분.
-- **2D U-Net residual regressor 512²**: 단일 A4500에서 batch 8~16 수준까지 가능할 것으로 예상되며, pix2pixHD-first pipeline 재현 후 비교 후보로 둔다.
+- **2D U-Net residual regressor 512²**: 단일 A4500에서 batch 8~16 수준까지 가능할 것으로 예상된다. 현재 실험 경로에서는 reference GAN weight staging이 blocked인 동안 Phase 1A 계약을 보존하는 active low-risk baseline/comparator로 먼저 full-dataset 전환을 진행한다.
 - **Latent Diffusion**: AE 동결 시 학습 대상은 UNet+ControlNet. latent(예: 64²×4)에서 batch 8까지 가능. **이것이 20GB에서 diffusion을 쓰는 유일하게 현실적인 길.**
 - **혼합정밀(AMP)·gradient checkpointing·grad accumulation** 적극 사용.
 - 입력이 2D 단일슬라이스라 3D 부담 없음 → 메모리 매우 유리.
@@ -393,7 +395,7 @@ L = λ_pix · L1(Δ_hat, Δ_gt)                      # residual pixel fidelity
 ### 4.6 로컬 검증 전략
 - **two-tier hold-out split**: 최종 모델 선택은 center-held-out split으로 한다. center metadata가 충분하지 않으면 patient-grouped, source-stratified hold-out을 fallback model-selection split으로 기록한다. 빠른 pipeline/debug 회귀 확인에는 별도의 small random patient debug hold-out split을 둘 수 있으나, submission candidate 승격 근거로 쓰지 않는다. (실측: `center_id`는 `imaging_data.site`로 대개 채울 수 있으나 MAMA-MIA 학습셋에선 site가 source dataset과 거의 일치(예: DUKE→DUKE)하므로, 로컬 center-held-out은 진짜 외부기관 시프트(Test A/B)의 **근사**일 뿐이다.)
 - **split manifest**: split은 `splits/<split_id>.json` 단일 JSON manifest로 관리한다. 각 case row는 `patient_id`, `split`, `source_id`, nullable `center_id`, `input`, `ground_truth`, `mask`를 포함한다. `center_id`는 split 결정용 local metadata일 뿐 파일명, `.mha` metadata, submission container, inference input에 넣지 않는다. `source_id`/`center_id`는 `patient_info_files/<id>.json`의 `imaging_data.dataset`/`imaging_data.site`에서 파생한다.
-- **debug split same-shape 제약(현재 구현)**: 현재 Phase 1A 최소 train/evaluate 루프(`src/phase1a/run.py`)는 case별 residual target을 `np.stack`으로 모아 평균하므로 split 내 2D 슬라이스 크기가 **동일**해야 한다(혼합 shape, 예: 448²·512²·320² 혼용 시 `ValueError: all input arrays must have the same shape`). 따라서 debug hold-out split은 같은 크기(예: 512²) 케이스로 구성한다. 이는 **debug split 선택상의 현재 구현 제약**이며 최종 모델 선택 설계 가정이 아니다 — 모델 contract는 native size를 내부 pad/crop으로 보존한다(§4.5, PRD). 후속 issue에서 trainer가 pad/crop batching을 지원하면 이 제약은 사라진다.
+- **same-shape 제약(현재 구현/전환 중)**: Phase 1A 최소 train/evaluate 루프(`src/phase1a/run.py`)와 초기 Phase 1B NumPy comparator는 case별 residual target을 한 배치/통계로 모으는 경로에서 split 내 2D 슬라이스 크기가 **동일**해야 했다(혼합 shape, 예: 448²·512²·320² 혼용 시 `ValueError: all input arrays must have the same shape`). 따라서 기존 debug/center-held-out split은 같은 크기 케이스 위주로 구성했다. 이는 **현재 구현 제약**이지 최종 모델 선택 설계 가정이 아니다 — 모델 contract는 native size를 내부 pad/crop 또는 shape-bucketed/PyTorch dataloader로 처리하고 출력은 native size로 crop-back해야 한다(§4.5, PRD). full-dataset 전환에서는 이 제약 해소 여부와 남은 제외 케이스를 split manifest/config에 명시한다.
 - **Phase 1A experiment config**: 학습 run은 단일 YAML config로 재현한다. 최소 schema는 `run`, `data`, `model`, `loss`, `train`, `evaluation`, `submission` 섹션을 포함하고, `model.inference_inputs=[pre_contrast]`, `model.target=subtraction`, `submission.output_kind=synthetic_post`, `evaluation.models_dir=src/evaluation/models`, `evaluation.ensemble=true`, `evaluation.seg_fold=0`을 명시한다.
 - **메트릭**: MSE·LPIPS(torchmetrics alex, ±5σ 클립)·SSIM-tumor(skimage, data_range=10, win7)·**FRD(frd-score v1, 종양마스크)**를 **공식 구현 그대로** 재현한다. 엔트리포인트는 `src/evaluation/evaluate.py`, 구현은 `src/evaluation/evaluators/{image_metrics,roi_metrics,classification,segmentation}.py`, 경로 설정은 `MAMA_PREDICTIONS_DIR`, `MAMA_PRECONTRAST_DIR`, `MAMA_GT_DIR`, `MAMA_MASKS_DIR`, `MAMA_MODELS_DIR`, `MAMA_OUTPUT_DIR`를 사용한다.
 - **③④ fixed evaluation models**: README 구조대로 받은 `src/evaluation/models/`의 pretrained classification ensemble과 nnU-Net segmenter를 hold-out evaluation의 고정 평가자로 사용한다. 기본 config는 `MAMA_MODELS_DIR=src/evaluation/models`, `MAMA_ENSEMBLE=True`, `MAMA_SEG_FOLD=0`이다. fold sensitivity는 별도 분석으로 분리한다.

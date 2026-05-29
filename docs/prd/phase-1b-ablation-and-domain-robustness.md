@@ -16,7 +16,11 @@ The main risk is uncontrolled ablation sprawl: adding a U-Net comparator, percep
 
 Build Phase 1B as a controlled ablation and robustness framework on top of the Phase 1A contracts. Each ablation changes one primary factor at a time, runs on the same split and evaluation configuration, records the same audit metadata, and is promoted only through the existing staged hold-out evaluation and submission smoke-test gates.
 
-The first comparison path is a 2D U-Net residual regressor against the Phase 1A pix2pixHD-style model. After that, Phase 1B can test domain robustness augmentation, perceptual/LPIPS-style losses, stronger pix2pixHD feature matching, tumor ROI discriminator ideas, and auxiliary segmentation objectives as separate, reversible experiments.
+The first comparison path is a 2D U-Net residual regressor against the Phase 1A pix2pixHD-style model. In the current repository state, this U-Net residual-regressor path is the active low-risk implementation path because the shared Phase 1A contracts are reproducible while the reference GAN remains blocked without staged external weights. After the U-Net path is stable on a fuller eligible local dataset, Phase 1B can test domain robustness augmentation, tumor ROI loss-weight changes, perceptual/LPIPS-style losses, stronger pix2pixHD feature matching, tumor ROI discriminator ideas, and auxiliary segmentation objectives as separate, reversible experiments.
+
+### Current implementation alignment note
+
+As of the latest Phase 1B evidence, completed local experiments are exploratory and no candidate is promoted for packaging. The center/source-proxy held-out runs use NACT hold-out `n=4`; base16 U-Net improves several proxy groups over lower-capacity variants, but the evidence remains too small and segmentation utility remains weak. Therefore the next implementation step is to create an explicit full-dataset or larger eligible-dataset split/config for the U-Net residual-regressor baseline before starting heavier GAN/perceptual/discriminator work. If that split leaves no independent local hold-out, its evidence must be recorded as training/smoke evidence rather than promotion-grade model-selection evidence.
 
 ## User Stories
 

@@ -1,0 +1,111 @@
+{
+  "schema_version": "phase1a.split_manifest.v1",
+  "split_intent": "model_selection_holdout",
+  "description": "Phase 1B source/center-proxy held-out comparison split: train on DUKE preprocessed debug cases, hold out NACT cases preprocessed locally for issue #38.",
+  "selection": {
+    "strategy": "center_held_out_source_proxy",
+    "seed": 38,
+    "train_source_ids": ["DUKE"],
+    "holdout_source_ids": ["NACT"],
+    "center_metadata_available": true,
+    "source_metadata_available": true,
+    "train_count": 4,
+    "holdout_count": 4,
+    "source_split_file": "../../MAMASYNTH2026_dataset/train_test_splits.csv",
+    "train_preprocessed_root": "../../MAMASYNTH2026_dataset/phase1a/debug_holdout_real_v1/mha",
+    "holdout_preprocessed_root": "../experiments/phase1b/center_heldout_v1/preprocessed/mha",
+    "normalisation_stats": "src/preprocessing/training_pre_stats.json",
+    "segmentation_source": "expert",
+    "note": "Only source/center proxy metadata is locally available; NACT is held out from DUKE training cases. Evidence remains exploratory because training count is intentionally small."
+  },
+  "cases": [
+    {
+      "case_id": "DUKE_002",
+      "membership": "train",
+      "source_id": "DUKE",
+      "center_id": "DUKE",
+      "paths": {
+        "pre_contrast": "../../MAMASYNTH2026_dataset/phase1a/debug_holdout_real_v1/mha/input/DUKE_002.mha",
+        "ground_truth_post": "../../MAMASYNTH2026_dataset/phase1a/debug_holdout_real_v1/mha/ground_truth/DUKE_002.mha",
+        "tumor_mask": "../../MAMASYNTH2026_dataset/phase1a/debug_holdout_real_v1/mha/mask/DUKE_002.mha"
+      }
+    },
+    {
+      "case_id": "DUKE_009",
+      "membership": "train",
+      "source_id": "DUKE",
+      "center_id": "DUKE",
+      "paths": {
+        "pre_contrast": "../../MAMASYNTH2026_dataset/phase1a/debug_holdout_real_v1/mha/input/DUKE_009.mha",
+        "ground_truth_post": "../../MAMASYNTH2026_dataset/phase1a/debug_holdout_real_v1/mha/ground_truth/DUKE_009.mha",
+        "tumor_mask": "../../MAMASYNTH2026_dataset/phase1a/debug_holdout_real_v1/mha/mask/DUKE_009.mha"
+      }
+    },
+    {
+      "case_id": "DUKE_010",
+      "membership": "train",
+      "source_id": "DUKE",
+      "center_id": "DUKE",
+      "paths": {
+        "pre_contrast": "../../MAMASYNTH2026_dataset/phase1a/debug_holdout_real_v1/mha/input/DUKE_010.mha",
+        "ground_truth_post": "../../MAMASYNTH2026_dataset/phase1a/debug_holdout_real_v1/mha/ground_truth/DUKE_010.mha",
+        "tumor_mask": "../../MAMASYNTH2026_dataset/phase1a/debug_holdout_real_v1/mha/mask/DUKE_010.mha"
+      }
+    },
+    {
+      "case_id": "DUKE_012",
+      "membership": "train",
+      "source_id": "DUKE",
+      "center_id": "DUKE",
+      "paths": {
+        "pre_contrast": "../../MAMASYNTH2026_dataset/phase1a/debug_holdout_real_v1/mha/input/DUKE_012.mha",
+        "ground_truth_post": "../../MAMASYNTH2026_dataset/phase1a/debug_holdout_real_v1/mha/ground_truth/DUKE_012.mha",
+        "tumor_mask": "../../MAMASYNTH2026_dataset/phase1a/debug_holdout_real_v1/mha/mask/DUKE_012.mha"
+      }
+    },
+    {
+      "case_id": "NACT_02",
+      "membership": "holdout",
+      "source_id": "NACT",
+      "center_id": "NACT",
+      "paths": {
+        "pre_contrast": "../experiments/phase1b/center_heldout_v1/preprocessed/mha/input/NACT_02.mha",
+        "ground_truth_post": "../experiments/phase1b/center_heldout_v1/preprocessed/mha/ground_truth/NACT_02.mha",
+        "tumor_mask": "../experiments/phase1b/center_heldout_v1/preprocessed/mha/mask/NACT_02.mha"
+      }
+    },
+    {
+      "case_id": "NACT_08",
+      "membership": "holdout",
+      "source_id": "NACT",
+      "center_id": "NACT",
+      "paths": {
+        "pre_contrast": "../experiments/phase1b/center_heldout_v1/preprocessed/mha/input/NACT_08.mha",
+        "ground_truth_post": "../experiments/phase1b/center_heldout_v1/preprocessed/mha/ground_truth/NACT_08.mha",
+        "tumor_mask": "../experiments/phase1b/center_heldout_v1/preprocessed/mha/mask/NACT_08.mha"
+      }
+    },
+    {
+      "case_id": "NACT_09",
+      "membership": "holdout",
+      "source_id": "NACT",
+      "center_id": "NACT",
+      "paths": {
+        "pre_contrast": "../experiments/phase1b/center_heldout_v1/preprocessed/mha/input/NACT_09.mha",
+        "ground_truth_post": "../experiments/phase1b/center_heldout_v1/preprocessed/mha/ground_truth/NACT_09.mha",
+        "tumor_mask": "../experiments/phase1b/center_heldout_v1/preprocessed/mha/mask/NACT_09.mha"
+      }
+    },
+    {
+      "case_id": "NACT_13",
+      "membership": "holdout",
+      "source_id": "NACT",
+      "center_id": "NACT",
+      "paths": {
+        "pre_contrast": "../experiments/phase1b/center_heldout_v1/preprocessed/mha/input/NACT_13.mha",
+        "ground_truth_post": "../experiments/phase1b/center_heldout_v1/preprocessed/mha/ground_truth/NACT_13.mha",
+        "tumor_mask": "../experiments/phase1b/center_heldout_v1/preprocessed/mha/mask/NACT_13.mha"
+      }
+    }
+  ]
+}

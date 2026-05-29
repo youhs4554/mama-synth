@@ -339,3 +339,138 @@
 - [x] Summarize the completed goal result in Korean for the user.
 - [x] Add an `AGENTS.md` rule requiring Korean goal completion summaries.
 - [x] Commit the major tracked changes from the completed goal.
+
+## Active task: Remaining experiment issue tracking
+
+- [x] Re-check current repository status, TODO, strategy, context, and experiment artifacts.
+- [x] Inspect open GitHub issues and identify stale parent PRDs versus true blockers.
+- [x] Create/update issue tracker entries for the next experiment steps: #38 center-held-out Phase 1B comparison, #39 promotion/package decision.
+- [x] Close completed stale parent PRD trackers #11-#13 and keep #14/#37 open as blocked by missing promoted candidate.
+- [x] Summarize the next experiment command path, blockers, and issue links.
+
+## Active task: #38 Phase 1B center-held-out comparison
+
+- [x] Create a split manifest with train/hold-out membership, strategy, seed, and center/source metadata.
+- [x] Confirm preprocessed `.mha` artifacts exist for selected hold-out cases under ignored local dataset/experiment paths.
+- [x] Run disabled U-Net residual and scanner-protocol seed29 candidates with the Phase 1B driver.
+- [x] Run official local evaluator with `MAMA_MODELS_DIR=src/evaluation/models`, `MAMA_ENSEMBLE=True`, and `MAMA_SEG_FOLD=0`.
+- [x] Write comparison artifact covering all four metric groups when possible and promotion-grade status.
+- [x] Run focused validation and summarize results.
+  - Split manifest: `splits/phase1b_center_heldout_nact_v1.json` (`DUKE` train, `NACT` held out, seed 38).
+  - Derived configs: `configs/phase1b/unet_residual_smoke_center_heldout_nact_v1.yaml` and `configs/phase1b/unet_residual_scanner_protocol_intensity_seed29_center_heldout_nact_v1.yaml`.
+  - Hold-out preprocessing: `experiments/phase1b/center_heldout_v1/preprocessed/mha/{input,ground_truth,mask}`.
+  - Comparison artifact: `experiments/phase1b/center_heldout_v1/center_heldout_comparison_v1.json`.
+  - Result: seed29 mild improves LPIPS and AUROC-contrast, ties AUROC-tumor/segmentation, but worsens MSE, SSIM-tumor, and FRD on n=4 NACT held-out evidence.
+  - Promotion decision: exploratory only; no submission candidate promotion because train n=4 is small and Dice remains low.
+  - Focused validation: `PYTHONPATH=src:src/evaluation uv run pytest src/phase1b/tests src/phase1a/tests/test_split_manifest.py -q` -> 37 passed.
+  - Current-goal broad validation: `PYTHONPATH=src:src/evaluation uv run pytest src/phase0/tests src/phase1a/tests src/phase1b/tests src/phase2/tests src/phase3/tests src/evaluation/tests src/preprocessing/test_preprocess.py src/submission/identity-baseline/test_algorithm.py -q` -> 202 passed, 3 skipped.
+  - Current-goal readiness verdict: experiment-ready for local Phase 1B exploratory runs; no submission promotion yet because center-held-out evidence is exploratory and Dice remains low.
+  - Background train/inference rerun log: `experiments/phase1b/center_heldout_v1/logs/phase1b_disabled_background_20260529-230302.log` -> exit 0; monitor command `tail -f experiments/phase1b/center_heldout_v1/logs/phase1b_disabled_background_20260529-230302.log`.
+  - Background official evaluator rerun log: `experiments/phase1b/center_heldout_v1/logs/official_eval_disabled_background_20260529-230329.log` -> exit 0; monitor command `tail -f experiments/phase1b/center_heldout_v1/logs/official_eval_disabled_background_20260529-230329.log`.
+  - Independent readiness report: `experiments/phase1b/center_heldout_v1/current_goal_readiness_report.{json,md}`.
+
+## Active task: Phase 1B stronger center-held-out candidate
+
+- [x] Brief current disabled vs scanner seed29 mild center-held-out performance.
+- [x] Add stronger base16 U-Net residual candidate config for the same center-held-out split.
+- [x] Run base16 train/inference in the background with durable log: `experiments/phase1b/center_heldout_v1/logs/phase1b_base16_background_20260529-230954.log` -> exit 0.
+- [x] Run official evaluator for base16 in the background with durable log: `experiments/phase1b/center_heldout_v1/logs/official_eval_base16_background_20260529-231047.log` -> exit 0.
+- [x] Compare base16 against disabled and scanner seed29 mild across promotion metric groups: `experiments/phase1b/center_heldout_v1/base16_comparison_v1.{json,md}`.
+- [x] Record promotion-grade decision and validation.
+  - Result: base16 improves LPIPS, FRD, AUROC-contrast vs disabled, Dice, and HD95, but worsens MSE and substantially worsens SSIM-tumor; no submission promotion.
+  - Focused validation: `PYTHONPATH=src:src/evaluation uv run pytest src/phase1b/tests src/phase1a/tests/test_split_manifest.py -q` -> 37 passed.
+
+## Active task: Phase 1B ablation readiness analysis
+
+- [x] Review `README.md`, `STRATEGY.md`, `CONTEXT.md`, challenge metric docs, and Phase 1B PRD.
+- [x] Inspect preprocessing, evaluation, submission, Phase 1A, and Phase 1B code surfaces.
+- [x] Inventory configs, split manifests, fixed evaluator models, ignored experiment artifacts, and external requirements.
+- [x] Document ablation candidates, priorities, validation methods, risks, and next-step boundary decisions in `docs/phase1b_ablation_readiness_analysis.md`.
+- [x] Run focused validation: `PYTHONPATH=src:src/evaluation uv run pytest src/phase1b/tests src/phase1a/tests/test_split_manifest.py -q` -> 37 passed.
+
+## Active goal: Phase 1B center/source-held-out three-candidate comparison
+
+- [x] Confirm larger source/center-proxy hold-out split manifest records train/hold-out membership, strategy, seed, and center/source metadata.
+  - Split manifest: `splits/phase1b_center_heldout_nact_v1.json` (`DUKE` train n=4, `NACT` hold-out n=4, seed 38).
+- [x] Confirm all three existing candidates have same-split run artifacts.
+  - `base4 disabled`: `configs/phase1b/unet_residual_smoke_center_heldout_nact_v1.yaml` -> `experiments/phase1b/center_heldout_v1/unet_residual_smoke_v1/run_summary.json`, predictions, checkpoint, metrics.
+  - `seed29 augmentation`: `configs/phase1b/unet_residual_scanner_protocol_intensity_seed29_center_heldout_nact_v1.yaml` -> `experiments/phase1b/center_heldout_v1/unet_residual_scanner_protocol_intensity_seed29_v1/run_summary.json`, predictions, checkpoint, metrics.
+  - `base16`: `configs/phase1b/unet_residual_base16_center_heldout_nact_v1.yaml` -> `experiments/phase1b/center_heldout_v1/unet_residual_base16_v1/run_summary.json`, predictions, checkpoint, metrics.
+- [x] Confirm official local evaluator outputs exist for all four metric groups under fixed evaluator settings.
+  - Settings recorded in `experiments/phase1b/center_heldout_v1/promotion_grade_comparison_v1.json`: `MAMA_MODELS_DIR=src/evaluation/models`, `MAMA_ENSEMBLE=True`, `MAMA_SEG_FOLD=0`.
+- [x] Write promotion-grade comparison artifact with metric table, local proxy ranks, tradeoffs, and decision.
+  - Artifact: `experiments/phase1b/center_heldout_v1/promotion_grade_comparison_v1.{json,md}`.
+  - Result: local proxy rank favors `base16 disabled`, but tradeoffs remain unstable; `base16` worsens MSE and substantially worsens SSIM-tumor, while `seed29 augmentation` worsens MSE/SSIM-tumor/FRD despite AUROC-contrast gain.
+  - Promotion decision: `exploratory_only_no_submission_promotion`; not promotion-grade because train n=4 remains small and absolute Dice remains low.
+- [x] Run focused validation and record result.
+  - `PYTHONPATH=src:src/evaluation uv run pytest src/phase1b/tests src/phase1a/tests/test_split_manifest.py -q` -> 37 passed in 0.42s.
+
+## Active goal: Phase 1B next promotion-grade re-evaluation path
+
+- [x] Inspect existing Phase 1B experiment artifacts and previous promotion-grade comparison.
+- [x] Choose the next path: larger train split for the current strongest existing candidate (`base16 disabled`) rather than a new stronger candidate, because processed same-shape train cases are available and this isolates train-size effect without new architecture/hyperparameter search.
+- [x] Add larger-train split manifest: `splits/phase1b_train6_center_heldout_nact_v1.json` (DUKE train n=6, fixed NACT hold-out n=4).
+  - Note: first train6 attempt with DUKE_001/DUKE_005 failed because the current NumPy comparator requires all train pairs to share native shape; pivoted to same-shape DUKE_021/DUKE_055 while keeping the NACT hold-out fixed.
+- [x] Add selected candidate config: `configs/phase1b/unet_residual_base16_train6_center_heldout_nact_v1.yaml`.
+- [x] Run train/inference with durable background log and record PID/log/status.
+  - Successful log: `experiments/phase1b/train6_center_heldout_v1/logs/phase1b_base16_train6_background_20260529-235344.log` -> exit 0; monitor command `tail -f experiments/phase1b/train6_center_heldout_v1/logs/phase1b_base16_train6_background_20260529-235344.log`.
+  - Retained failed attempt logs: `phase1b_base16_train6_background_20260529-235144.log` (mixed native shapes) and `phase1b_base16_train6_background_20260529-235243.log` (shortlist static evaluator mismatch).
+- [x] Run fixed official local evaluator with durable background log.
+  - Successful log: `experiments/phase1b/train6_center_heldout_v1/logs/official_eval_base16_train6_background_20260529-235441.log` -> exit 0; monitor command `tail -f experiments/phase1b/train6_center_heldout_v1/logs/official_eval_base16_train6_background_20260529-235441.log`.
+- [x] Write comparison artifact and promotion/no-promotion decision.
+  - Artifact: `experiments/phase1b/train6_center_heldout_v1/base16_train6_promotion_reevaluation_v1.{json,md}`.
+  - Result: train6 base16 improves MSE, SSIM-tumor, Dice, and HD95 versus train4 base16, but worsens LPIPS, FRD, AUROC-contrast, and AUROC-tumor-ROI.
+  - Promotion decision: `no_promotion_exploratory_only`; mixed four-group evidence and local n=4 hold-out are not promotion-grade.
+- [x] Run focused validation and record result.
+  - `PYTHONPATH=src:src/evaluation uv run pytest src/phase1b/tests src/phase1a/tests/test_split_manifest.py -q` -> 37 passed in 0.42s.
+
+## Active goal: Delegate Phase 1B U-Net pipeline to Claude via herdr
+
+- [x] Confirm repository orientation and read `AGENTS.md`, `README.md`, `STRATEGY.md`, `CONTEXT.md`, and current `docs/TODO.md` context.
+- [x] Write `CLAUDE.md` to inject repository rules, Phase 1B context, commands, safety constraints, and session-clear handoff notes for the Claude agent.
+- [x] Clear the current session before substantive Atopix/herdr/Phase 1B delegation work, per user instruction.
+  - Evidence: resumed from pi goal checkpoint after `CLAUDE.md` existed with session-clear handoff notes.
+- [x] Confirm or stop the Atopix sweep safely.
+  - Evidence: process scan `ps -eo pid,ppid,stat,etime,cmd | awk 'BEGIN{IGNORECASE=1} /[a]topix|[s]weep|[w]andb|[o]ptuna|[r]ay|[p]hase1b\\.run/ {print}'` returned no Atopix/sweep/training job to stop; no process was killed.
+- [x] Check `herdr` CLI and identify the running Claude agent.
+  - Evidence: `herdr status` reported compatible running server; `herdr agent list` identified idle `claude` in `/home/aim/workspace/hosang/mama-synth` at `term_652db4796c07a6`.
+- [x] Delegate Phase 1B PyTorch/CUDA U-Net training + synthetic `.mha` generation pipeline work to Claude with clear success criteria and validation requirements.
+  - Evidence: sent the Phase 1B handoff prompt to herdr agent `claude`, including U-Net training, synthetic `.mha` output expectations, validation commands, artifact/log locations, and protected-data/weights constraints.
+- [x] Confirm Claude acceptance/progress or report the concrete blocker.
+  - Evidence: `herdr agent read claude --source recent` showed Claude accepted the task, began reading context files, checked git state, and started inspecting Phase 1B code/config/split surfaces; `herdr agent list` reports `claude` is working.
+
+## Active goal: Phase 1B base8 capacity ablation — complete interrupted eval
+
+- [x] Read `CLAUDE.md` in fresh session; confirm no Atopix/sweep/Phase 1B job running before execution.
+  - Evidence: `ps` scan for `phase1b|atopix|sweep|evaluate.py|phase1b.run` returned no training/sweep/eval job; only MCP/server-monitor processes present. No process killed.
+- [x] Inspect interrupted base8 artifacts from prior delegation.
+  - base8 train completed earlier (`...base8train.log` exit 0): checkpoint.npz, 4 predictions, run_summary.json, ablation metrics written.
+  - base8 official eval was interrupted at `[4/4] Segmentation 0%`; `unet_residual_base8_v1/official_metrics/` was empty.
+- [x] Verify base8 synthetic `.mha` contract before re-evaluating.
+  - float32; native `(256,256)` matching pre-contrast input; metadata copied from pre-contrast reference; synthetic post (`pre+residual`), not residual (corr(pred,GT)=+0.865…+0.913); pre-contrast-only inference.
+- [x] Complete the interrupted base8 official evaluation with fixed evaluator settings, background + durable log.
+  - Log: `experiments/phase1b/center_heldout_v1/logs/official_eval_base8_background_20260530-005454.log` -> exit 0 (30.3s); monitor `tail -f <log>`; PID recorded in `logs/latest_base8_official_eval.pid`.
+  - Output: `experiments/phase1b/center_heldout_v1/unet_residual_base8_v1/official_metrics/metrics.json`.
+- [x] Write base8-vs-base16 capacity comparison artifact and promotion decision.
+  - Artifact: `experiments/phase1b/center_heldout_v1/base8_vs_base16_capacity_comparison_v1.{json,md}`.
+  - Result: base16 wins 7/8 metric groups (MSE, LPIPS, SSIM-tumor, FRD, AUROC-contrast, Dice, HD95); base8 wins only AUROC-tumor-ROI (single-case swing at n=4). base8 is dominated by base16.
+  - Promotion decision: `no_promotion_exploratory_only`; hold-out n=4 too small and absolute Dice near zero (base8 0.0072, base16 0.1390).
+- [x] Run focused validation and record result.
+  - `PYTHONPATH=src:src/evaluation uv run pytest src/phase1b/tests src/phase1a/tests/test_split_manifest.py -q` -> 37 passed in 0.54s.
+
+## Active goal: Re-delegate Phase 1B full-dataset U-Net transition to Claude
+
+- [x] Inspect current Claude/Phase 1B handoff context, experiment artifacts, split/config state, and herdr agent availability.
+- [x] Write Claude full-dataset `/goal` handoff prompt: `/tmp/claude_full_dataset_goal_handoff.md`.
+- [x] Send `/clear` and the full-dataset `/goal` prompt to the idle Claude agent via herdr.
+  - Evidence: `/clear` executed in Claude; first long `/goal` prompt exceeded Claude's 4000-character goal limit, then shortened prompt from `/tmp/claude_full_dataset_goal_short.txt` was accepted.
+- [x] Verify Claude received or accepted the delegated goal, or report the concrete blocker.
+  - Evidence: `herdr agent read claude --source recent` showed `Goal set: MAMA-SYNTH Phase 1B full-dataset U-Net transition` and Claude started by reading `/tmp/claude_full_dataset_goal_handoff.md`; `herdr agent list` reported `claude` as working.
+
+## Active task: Fact-check Phase 1B design docs/specs against current experiments
+
+- [x] Confirm Claude is actively modifying Phase 1B code and keep code files out of this commit scope.
+- [x] Fact-check Phase 1B PRD, STRATEGY roadmap, and readiness analysis against current U-Net/base8/base16/train6/full-dataset delegation state.
+- [x] Update docs/specs to clarify current experiment order, no-promotion status, full-dataset split/config priority, shape-handling constraint, and GPU-conditional heavier ablations.
+- [x] Validate documentation changes and commit only documentation/spec files, excluding Claude's active code changes.
+  - Validation: parsed selected Phase 1B split JSON and YAML config specs with `uv run python`; grep confirmed updated full-dataset/order/no-promotion/shape-handling language.

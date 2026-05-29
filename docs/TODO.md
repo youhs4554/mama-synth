@@ -107,3 +107,11 @@
 - [x] Re-run broader validation after promotion/baseline audit fixes: `PYTHONPATH=src:src/evaluation pytest src/phase1a/tests src/evaluation/tests src/preprocessing/test_preprocess.py -q`.
 - [x] Enforce all four promotion metric groups before candidate acceptance: image fidelity, tumor ROI realism, classification utility, and segmentation utility.
 - [x] Re-run broader validation after four-metric promotion gate fix: `PYTHONPATH=src:src/evaluation pytest src/phase1a/tests src/evaluation/tests src/preprocessing/test_preprocess.py -q`.
+
+## Active task: Phase 1A real-data baseline readiness
+
+- [x] Check repository state and Phase 1A runnable surface.
+- [x] Check for local dataset, split manifest, experiment outputs, and fixed evaluator model directories.
+- [x] Add or identify the smallest command for running Phase 1A on a real split.
+- [ ] Run Phase 1A on real train/hold-out data.
+- [ ] Produce baseline metric table for Phase 1A before Phase 1B ablations.

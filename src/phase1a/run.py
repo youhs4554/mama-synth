@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Mapping, Sequence
 
 import numpy as np
 
@@ -31,6 +32,22 @@ class ConstantResidualPredictor:
 
     def predict(self, pre_contrast: np.ndarray) -> np.ndarray:
         return np.broadcast_to(self.residual, pre_contrast.shape).astype(np.float32)
+
+
+def load_phase1a_config_file(path: str | Path) -> Mapping[str, object]:
+    """Load a Phase 1A experiment config from JSON or YAML."""
+    config_path = Path(path)
+    if config_path.suffix in {".yaml", ".yml"}:
+        import yaml
+
+        loaded = yaml.safe_load(config_path.read_text())
+    elif config_path.suffix == ".json":
+        loaded = json.loads(config_path.read_text())
+    else:
+        raise ValueError("Phase 1A config file must be .json, .yaml, or .yml")
+    if not isinstance(loaded, Mapping):
+        raise ValueError("Phase 1A config file must contain an object")
+    return loaded
 
 
 def run_phase1a_train_evaluate(raw_config: Mapping[str, object]) -> Phase1ARunResult:
@@ -147,3 +164,30 @@ def _train_tumor_aware_constant_residual_model(
             }
         )
     return trained_residual, tuple(loss_history)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run Phase 1A train/evaluate from a JSON or YAML config path."""
+    parser = argparse.ArgumentParser(description="Run Phase 1A train/evaluate")
+    parser.add_argument("config", help="Path to a Phase 1A JSON/YAML experiment config")
+    args = parser.parse_args(argv)
+
+    result = run_phase1a_train_evaluate(load_phase1a_config_file(args.config))
+    print(
+        json.dumps(
+            {
+                "checkpoint_path": str(result.checkpoint_path),
+                "summary_path": str(result.summary_path),
+                "prediction_paths": {
+                    case_id: str(path) for case_id, path in result.prediction_paths.items()
+                },
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

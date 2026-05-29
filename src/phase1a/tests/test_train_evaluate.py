@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 import SimpleITK as sitk
 
-from phase1a.run import run_phase1a_train_evaluate
+from phase1a.run import main, run_phase1a_train_evaluate
 
 
 def _write_fake_artifact(path: Path, case_id: str, values: np.ndarray) -> None:
@@ -238,3 +238,22 @@ def test_train_evaluate_loop_writes_mha_predictions_for_mha_manifest_cases(
         np.array([[11, 22], [33, 44]], dtype=np.float32),
     )
     assert prediction_image.GetSpacing() == (0.7, 0.8)
+
+
+def test_phase1a_run_cli_loads_yaml_config_and_prints_outputs(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import yaml
+
+    raw_config = _minimal_run_config(tmp_path)
+    config_path = tmp_path / "phase1a.yaml"
+    config_path.write_text(yaml.safe_dump(raw_config))
+
+    assert main([str(config_path)]) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["checkpoint_path"] == str(tmp_path / "run" / "checkpoint.npz")
+    assert output["summary_path"] == str(tmp_path / "run" / "run_summary.json")
+    assert output["prediction_paths"] == {
+        "case-holdout-001": str(tmp_path / "run" / "predictions" / "case-holdout-001.npz")
+    }

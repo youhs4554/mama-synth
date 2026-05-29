@@ -82,7 +82,7 @@ Do not upload protected MRI slices, masks, generated challenge outputs, or model
 
 ## Communication Guidelines
 
-At each response or meaningful checkpoint, state the next concrete step before continuing. Keep it short and actionable, for example: "Next step: run the targeted tests" or "Next step: update the split manifest." If work is blocked, state the next unblock action instead of a normal continuation step.
+After completing a long-running workflow such as a `/goal`, state the recommended next concrete step. Keep it short and actionable, for example: "Next step: run the first debug experiment" or "Next step: prepare the split manifest." Do not add next-step guidance to every routine response unless it clarifies an active workflow or blocker.
 
 ## Commit & Pull Request Guidelines
 

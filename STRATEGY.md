@@ -380,6 +380,13 @@ cp -r submission-gan submission-my-model
 - few-step/regression-style 샘플링(YODA/ExpA)으로 MSE 회복.
 - 검증: Phase 1A/1B 대비 FRD/AUROC proxy 향상하면서 MSE 큰 손실 없는지.
 
+**현황 업데이트 (2026-05-30) — Phase 2 go (사용자 지시) + 구현 1차 결정**
+- **go/no-go 재결정**: 이전 `experiments/phase2/go_no_go_decision.json`은 "metric gap 없음 → no-go/deferred"였으나, (1) 사용자 `/goal` 지시로 Phase 1A·Phase 2 병행 진행이 승인되었고 (2) Phase 1A 증거에서 **구체적 metric gap이 확인**(fine-tuned pix2pixHD는 downstream segmentation 우세[Dice 0.567]이나 pixel/perceptual fidelity 열세[MSE 0.42 vs U-Net 0.20, SSIM-tumor 음수])되어 gate를 **go로 전환**했다. 잔차/사실성 강점의 latent diffusion이 이 gap을 메우는 직접 후보다.
+- **VAE 대체**: 권장 SD2.1 VAE 레포(`stabilityai/stable-diffusion-2-1-base`)는 현재 gated(401)라, 동일 KL f8 4채널 아키텍처의 공개·MIT 라이선스 `stabilityai/sd-vae-ft-mse`로 동결 backbone을 대체한다(컷오프 이전 공개). 제출 적격성은 동일하게 제출 전 약관 재확인 대상.
+- **조건화 단순화**: CC-Net의 ControlNet 대신 1차 구현은 **pre-contrast latent 채널 concat(Palette식 latent 조건화)** 으로 20GB에 맞춘다. ControlNet은 후속 ablation.
+- **정규화 재설계**: pix2pixHD 경로의 per-image min-max uint8 브리지는 비가역적이고 종양 조영증강을 압축(음수 SSIM-tumor 원인)하므로, Phase 2는 **고정·가역 z-score↔[-1,1] 매핑**(`Z_LO..Z_HI` clip, 기본 [-0.5, 12])과 latent per-channel 표준화를 쓴다.
+- 구현: `src/phase2/latent_diffusion.py`(encode/train/eval 서브커맨드), 스모크 테스트 `src/phase2/tests/test_latent_diffusion.py`(CPU 4 passed). 학습/평가는 GPU 0에서 fine-tune 종료 후 순차 실행, NACT-out LOSO(n=64) 고정 평가로 비교한다. 승격은 신뢰 가능한 fold의 4개 metric group 동시 충족 시에만.
+
 **Phase 3 — 앙상블/선택 (선택)**
 - 메트릭 그룹별 강점이 다르면(예: TeNCA=image-level, diffusion=FRD) **그룹별 최적 모델 분석 후 단일 제출 모델 선정**. 추론속도 무관하므로 무거운 모델도 OK.
 

@@ -107,18 +107,26 @@ class UNetResidualRegressor:
         return np.concatenate([decoded, batch], axis=1).astype(np.float32)
 
     def fit_residual_head(self, pre_contrast_cases: Sequence[np.ndarray], residual_targets: Sequence[np.ndarray]) -> None:
-        """Fit the trainable 1x1 residual head over decoder features."""
-        feature_rows: list[np.ndarray] = []
-        target_rows: list[np.ndarray] = []
+        """Fit the trainable 1x1 residual head over decoder features.
+
+        The fit accumulates the least-squares normal equations one case at a time
+        so full-dataset training scales to many cases of variable native shape
+        without materialising the full per-pixel design matrix in memory.
+        """
+        n_features = int(self.head_weights.shape[0])
+        gram = np.zeros((n_features + 1, n_features + 1), dtype=np.float64)
+        moment = np.zeros(n_features + 1, dtype=np.float64)
         for pre, residual in zip(pre_contrast_cases, residual_targets, strict=True):
             batch = np.asarray(pre, dtype=np.float32)[None, None, :, :]
             features = self._feature_tensor(batch)[0]
-            feature_rows.append(np.moveaxis(features, 0, -1).reshape(-1, features.shape[0]))
-            target_rows.append(np.asarray(residual, dtype=np.float32).reshape(-1))
-        design = np.concatenate(feature_rows, axis=0)
-        targets = np.concatenate(target_rows, axis=0)
-        design_with_bias = np.concatenate([design, np.ones((design.shape[0], 1), dtype=np.float32)], axis=1)
-        solution, *_ = np.linalg.lstsq(design_with_bias, targets, rcond=None)
+            design = np.moveaxis(features, 0, -1).reshape(-1, features.shape[0])
+            design_with_bias = np.concatenate(
+                [design, np.ones((design.shape[0], 1), dtype=np.float32)], axis=1
+            ).astype(np.float64)
+            target = np.asarray(residual, dtype=np.float32).reshape(-1).astype(np.float64)
+            gram += design_with_bias.T @ design_with_bias
+            moment += design_with_bias.T @ target
+        solution, *_ = np.linalg.lstsq(gram, moment, rcond=None)
         self.head_weights = solution[:-1].astype(np.float32)
         self.head_bias = np.float32(solution[-1])
 
@@ -146,7 +154,6 @@ def train_unet_residual_regressor(
         raise ValueError("at least one training pair is required")
     pre_arrays: list[np.ndarray] = []
     residual_targets: list[np.ndarray] = []
-    reference_shape: tuple[int, ...] | None = None
     for pre, post in zip(pre_contrast_cases, ground_truth_post_cases, strict=True):
         pre_array = np.asarray(pre, dtype=np.float32)
         post_array = np.asarray(post, dtype=np.float32)
@@ -154,10 +161,6 @@ def train_unet_residual_regressor(
             raise ValueError("pre and post training pairs must have matching shapes")
         if pre_array.ndim != 2:
             raise ValueError("UNetResidualRegressor training pairs must be 2D")
-        if reference_shape is None:
-            reference_shape = pre_array.shape
-        elif pre_array.shape != reference_shape:
-            raise ValueError("all training pairs must share a native shape for this comparator")
         pre_arrays.append(pre_array)
         residual_targets.append(post_array - pre_array)
 

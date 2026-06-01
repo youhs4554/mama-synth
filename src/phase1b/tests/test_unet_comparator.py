@@ -77,6 +77,31 @@ def test_train_unet_residual_regressor_learns_input_dependent_residuals() -> Non
     np.testing.assert_allclose(bright_residual.mean(), 1.25, atol=0.05)
 
 
+def test_train_unet_residual_regressor_supports_variable_native_shapes() -> None:
+    # Full-dataset training mixes cases with different native slice shapes.
+    pre_cases = [
+        np.zeros((8, 8), dtype=np.float32),
+        np.ones((6, 10), dtype=np.float32),
+        np.full((12, 5), 0.5, dtype=np.float32),
+    ]
+    post_cases = [pre_cases[0] + 0.25, pre_cases[1] + 1.25, pre_cases[2] + 0.75]
+
+    model = train_unet_residual_regressor(
+        pre_cases,
+        post_cases,
+        in_channels=1,
+        base_channels=4,
+        seed=7,
+    )
+
+    dark_residual = model.predict(np.zeros((8, 8), dtype=np.float32))
+    bright_residual = model.predict(np.ones((8, 8), dtype=np.float32))
+
+    assert float(bright_residual.mean()) > float(dark_residual.mean()) + 0.5
+    np.testing.assert_allclose(dark_residual.mean(), 0.25, atol=0.1)
+    np.testing.assert_allclose(bright_residual.mean(), 1.25, atol=0.1)
+
+
 def test_trained_unet_regressor_predicts_native_size_after_training() -> None:
     model = train_unet_residual_regressor(
         [np.zeros((8, 8), dtype=np.float32), np.ones((8, 8), dtype=np.float32)],
